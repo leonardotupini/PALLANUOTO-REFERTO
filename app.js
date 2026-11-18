@@ -31,6 +31,8 @@ function creaNuovaStrutturaGara() {
     cronometrista: '',
     noteArbitrali: '',
     usaCronometro: false,
+    tempoCorrente: '1° TEMPO',
+    durataQuarto: 420,
     versioneExport: 0,
     scoreB: 0,
     scoreN: 0,
@@ -139,10 +141,21 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!Number.isFinite(ev.id)) ev.id = i + 1;
   });
 
+  if (!ORDINE_TEMPI.includes(statoGara.tempoCorrente)) statoGara.tempoCorrente = '1° TEMPO';
+  statoGara.durataQuarto = (statoGara.durataQuarto === 480) ? 480 : 420;
+  secondiRimanenti = statoGara.durataQuarto;
+
+  const durataEl = document.getElementById('durataQuarto');
+  if (durataEl) durataEl.value = String(statoGara.durataQuarto);
+  aggiornaQuarterUI();
+  sincronizzaMinutoInputs(formattaTempo(statoGara.durataQuarto));
+
   const toggleEl = document.getElementById('toggleTimerMode');
+  const manualBar = document.getElementById('manualClockBar');
   if (toggleEl) {
     toggleEl.value = statoGara.usaCronometro ? 'Y' : 'N';
     document.getElementById('timerBox').style.display = statoGara.usaCronometro ? 'block' : 'none';
+    if (manualBar) manualBar.style.display = statoGara.usaCronometro ? 'none' : 'flex';
     if (statoGara.usaCronometro) aggiornaDisplayCronometro();
   }
 
@@ -223,16 +236,63 @@ function formattaTempo(sec) {
   return `${min}:${String(rem).padStart(2, '0')}`;
 }
 
+function sincronizzaMinutoInputs(valore, sorgenteEl = null) {
+  ['minutoTabellone', 'minutoQuickInput', 'minutoInput'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || el === sorgenteEl) return;
+    if (document.activeElement === el) return;
+    el.value = valore;
+  });
+}
+
+function normalizzaCampiMinuto(sorgenteEl) {
+  if (!sorgenteEl) return;
+  const sec = minutoInSecondi(sorgenteEl.value);
+  if (sec >= 0) {
+    const formatted = formattaTempo(sec);
+    sorgenteEl.value = formatted;
+    sincronizzaMinutoInputs(formatted, sorgenteEl);
+  }
+}
+
+function aggiornaQuarterUI() {
+  const tempo = statoGara.tempoCorrente || '1° TEMPO';
+  const selectTempo = document.getElementById('tempoCorrente');
+  if (selectTempo) selectTempo.value = tempo;
+  document.querySelectorAll('.quarter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tempo === tempo);
+  });
+  const quickTempo = document.getElementById('quickActionTempo');
+  if (quickTempo) quickTempo.textContent = tempo;
+}
+
+async function cambiaTempoCorrente(nuovoTempo) {
+  if (!ORDINE_TEMPI.includes(nuovoTempo)) return;
+  statoGara.tempoCorrente = nuovoTempo;
+  aggiornaQuarterUI();
+  if (statoGara.usaCronometro) {
+    resetCronometro();
+  } else {
+    sincronizzaMinutoInputs(formattaTempo(statoGara.durataQuarto || 420));
+  }
+  await salvaStatoGara(statoGara);
+}
+
+async function cambiaDurataQuarto() {
+  const durataEl = document.getElementById('durataQuarto');
+  const durata = parseInt(durataEl?.value, 10) === 480 ? 480 : 420;
+  statoGara.durataQuarto = durata;
+  resetCronometro();
+  await salvaStatoGara(statoGara);
+}
+
 function aggiornaDisplayCronometro() {
   const displayEl = document.getElementById('timerDisplay');
-  const minInputEl = document.getElementById('minutoInput');
   if (!displayEl) return;
 
   const formatted = formattaTempo(secondiRimanenti);
   displayEl.textContent = formatted;
-  if (minInputEl && document.activeElement !== minInputEl) {
-    minInputEl.value = formatted;
-  }
+  sincronizzaMinutoInputs(formatted);
 
   displayEl.classList.remove('running', 'ended');
   if (secondiRimanenti === 0) displayEl.classList.add('ended');
@@ -245,14 +305,17 @@ async function cambiaModalitaCronometro() {
   statoGara.usaCronometro = attivo;
 
   const timerBox = document.getElementById('timerBox');
+  const manualBar = document.getElementById('manualClockBar');
   if (attivo) {
     timerBox.style.display = 'block';
+    if (manualBar) manualBar.style.display = 'none';
     resetCronometro();
   } else {
     clearInterval(timerInterval);
     timerInterval = null;
     cronometroAttivo = false;
     timerBox.style.display = 'none';
+    if (manualBar) manualBar.style.display = 'flex';
   }
   await salvaStatoGara(statoGara);
 }
@@ -294,7 +357,7 @@ function resetCronometro() {
   clearInterval(timerInterval);
   timerInterval = null;
   cronometroAttivo = false;
-  const durata = parseInt(document.getElementById('durataQuarto').value, 10) || 420;
+  const durata = parseInt(document.getElementById('durataQuarto')?.value, 10) || statoGara.durataQuarto || 420;
   secondiRimanenti = durata;
   targetEndTimestamp = null;
 
@@ -310,7 +373,7 @@ function resetCronometro() {
 }
 
 function aggiustaSecondi(delta) {
-  const maxSec = parseInt(document.getElementById('durataQuarto').value, 10) || 420;
+  const maxSec = parseInt(document.getElementById('durataQuarto')?.value, 10) || statoGara.durataQuarto || 420;
   secondiRimanenti = Math.min(maxSec, Math.max(0, secondiRimanenti + delta));
   if (cronometroAttivo) {
     targetEndTimestamp = Date.now() + secondiRimanenti * 1000;
@@ -358,9 +421,8 @@ function mostraBannerFineTempo() {
   }
 }
 
-function avanzaQuartoAutomatico() {
-  const selectTempo = document.getElementById('tempoCorrente');
-  const corrente = selectTempo.value;
+async function avanzaQuartoAutomatico() {
+  const corrente = document.getElementById('tempoCorrente').value;
   const mappaSuccessivi = {
     '1° TEMPO': '2° TEMPO',
     '2° TEMPO': '3° TEMPO',
@@ -368,8 +430,7 @@ function avanzaQuartoAutomatico() {
   };
   const succ = mappaSuccessivi[corrente];
   if (succ) {
-    selectTempo.value = succ;
-    resetCronometro();
+    await cambiaTempoCorrente(succ);
     const banner = document.getElementById('bannerFineTempo');
     if (banner) banner.style.display = 'none';
     const feedbackEl = document.getElementById('feedbackQuery');
@@ -548,37 +609,77 @@ function rilevaSquadra(seg, distintive) {
   return { squadra: punteggioB > punteggioN ? 'B' : 'N', ambigua: false };
 }
 
-function estraiCampiSegmento(seg, distintive) {
-  const campi = { squadra: null, calotta: null, sigla: null, query: false, ambigua: false };
+function estraiMinutoDaSegmento(seg) {
+  let pulito = seg;
+  let minuto = null;
 
-  const scorciatoia = seg.match(RE_SCORCIATOIA);
+  const formattaMin = (mStr, sStr) => {
+    const m = parseInt(mStr, 10);
+    const s = sStr !== undefined ? parseInt(sStr, 10) : 0;
+    if (m < 0 || m > 15 || s < 0 || s > 59) return null;
+    return formattaTempo(m * 60 + s);
+  };
+
+  const patterns = [
+    /(?<![\p{L}\p{N}])(?:al\s+|a\s+)?minut[oi]\s+(\d{1,2})\s*(?:e|:|\.|,)\s*(\d{1,2})(?![\p{L}\p{N}])/iu,
+    /(?<![\p{L}\p{N}])(?:al\s+|a\s+)?(\d{1,2})\s+minut[oi]\s*(?:e\s*)?(\d{1,2})(?![\p{L}\p{N}])/iu,
+    /(?<![\p{L}\p{N}])(\d{1,2})[:.](\d{2})(?![\p{L}\p{N}])/u,
+    /(?<![\p{L}\p{N}])(?:al\s+)?minut[oi]\s+(\d{1,2})(?![\p{L}\p{N}])/iu
+  ];
+
+  for (const re of patterns) {
+    const match = pulito.match(re);
+    if (match) {
+      const parsed = formattaMin(match[1], match[2]);
+      if (parsed) {
+        minuto = parsed;
+        pulito = `${pulito.slice(0, match.index)} ${pulito.slice(match.index + match[0].length)}`;
+        break;
+      }
+    }
+  }
+
+  return { minuto, senzaMinuti: pulito };
+}
+
+function estraiCampiSegmento(seg, distintive) {
+  const campi = { squadra: null, calotta: null, sigla: null, minuto: null, query: false, ambigua: false };
+
+  const { minuto, senzaMinuti } = estraiMinutoDaSegmento(seg);
+  campi.minuto = minuto;
+
+  const scorciatoia = senzaMinuti.match(RE_SCORCIATOIA);
   if (scorciatoia) {
     campi.squadra = scorciatoia[1].toUpperCase();
     campi.calotta = parseInt(scorciatoia[2], 10);
   }
 
   if (!campi.squadra) {
-    const r = rilevaSquadra(seg, distintive);
+    const r = rilevaSquadra(senzaMinuti, distintive);
     campi.squadra = r.squadra;
     campi.ambigua = r.ambigua;
   }
 
   if (!campi.calotta) {
-    const senzaMinuti = seg
-      .replace(/\d{1,2}[:.]\d{2}/g, ' ')
-      .replace(reParola('minut[oi]\\s+\\d{1,2}(?:\\s*(?:e|:)\\s*\\d{1,2})?', 'g'), ' ');
-    const m = senzaMinuti.match(RE_CALOTTA);
-    if (m) campi.calotta = parseInt(m[0], 10);
+    const pulitoCalotta = senzaMinuti
+      .replace(reParola('\\d{1,2}\\s*°?\\s*(?:tempo|quarto|fallo)', 'g'), ' ');
+    const prefissata = pulitoCalotta.match(/(?<![\p{L}\p{N}])(?:calott[ae]|numero|num|n\.?|#|del|dal|per\s+il)\s*(1[0-5]|[1-9])(?![\p{L}\p{N}])/u);
+    if (prefissata) {
+      campi.calotta = parseInt(prefissata[1], 10);
+    } else {
+      const m = pulitoCalotta.match(RE_CALOTTA);
+      if (m) campi.calotta = parseInt(m[0], 10);
+    }
   }
 
-  if (RE_QUERY.test(seg)) campi.query = true;
+  if (RE_QUERY.test(senzaMinuti)) campi.query = true;
 
-  if (RE_GOL.test(seg)) campi.sigla = 'GOL';
-  else if (RE_EDA.test(seg)) campi.sigla = 'EDA';
-  else if (RE_EDS.test(seg)) campi.sigla = 'EDS';
-  else if (RE_ET.test(seg)) campi.sigla = 'ET';
-  else if (RE_TR.test(seg)) campi.sigla = 'TR';
-  else if (RE_TO.test(seg)) campi.sigla = 'TO';
+  if (RE_GOL.test(senzaMinuti)) campi.sigla = 'GOL';
+  else if (RE_EDA.test(senzaMinuti)) campi.sigla = 'EDA';
+  else if (RE_EDS.test(senzaMinuti)) campi.sigla = 'EDS';
+  else if (RE_ET.test(senzaMinuti)) campi.sigla = 'ET';
+  else if (RE_TR.test(senzaMinuti)) campi.sigla = 'TR';
+  else if (RE_TO.test(senzaMinuti)) campi.sigla = 'TO';
 
   return campi;
 }
@@ -588,30 +689,39 @@ function parseComandoColloquiale(testo) {
   const distintive = paroleDistintiveSquadre();
   const segmenti = t.split(RE_CORREZIONE).map(s => s.trim()).filter(Boolean);
 
-  const ris = { squadra: null, calotta: null, sigla: null, query: false, ambigua: false };
+  const ris = { squadra: null, calotta: null, sigla: null, minuto: null, query: false, ambigua: false };
   segmenti.forEach(seg => {
     const c = estraiCampiSegmento(seg, distintive);
     if (c.squadra) { ris.squadra = c.squadra; ris.ambigua = false; }
     else if (c.ambigua && !ris.squadra) ris.ambigua = true;
     if (c.calotta) ris.calotta = c.calotta;
     if (c.sigla) ris.sigla = c.sigla;
+    if (c.minuto) ris.minuto = c.minuto;
     if (c.query) ris.query = true;
   });
 
   if (ris.query) {
     return { tipo: 'QUERY', squadra: ris.squadra, calotta: ris.calotta, ambigua: ris.ambigua };
   }
-  return { tipo: 'EVENTO', squadra: ris.squadra, calotta: ris.calotta, sigla: ris.sigla, ambigua: ris.ambigua };
+  return { tipo: 'EVENTO', squadra: ris.squadra, calotta: ris.calotta, sigla: ris.sigla, minuto: ris.minuto, ambigua: ris.ambigua };
 }
 
 // ==========================================
 // 4. EVENT SOURCING & GESTIONE EVENTI
 // ==========================================
 function minutoInSecondi(minuto) {
-  const s = String(minuto || '').trim().replace(/[.,'’]/g, ':');
+  const s = String(minuto || '').trim().replace(/[.,'’\s]+/g, ':');
+  if (/^\d{3}$/.test(s)) {
+    const min = parseInt(s[0], 10);
+    const sec = parseInt(s.slice(1), 10);
+    return sec < 60 ? min * 60 + sec : -1;
+  }
   const m = s.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
   if (!m) return -1;
-  return parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
+  const min = parseInt(m[1], 10);
+  const sec = m[2] ? parseInt(m[2], 10) : 0;
+  if (min > 15 || sec > 59) return -1;
+  return min * 60 + sec;
 }
 
 function normalizzaMinuto(minuto) {
@@ -636,6 +746,22 @@ function nuovoIdEvento() {
   return statoGara.eventi.reduce((max, ev) => Math.max(max, ev.id || 0), 0) + 1;
 }
 
+function calcolaChiave3FalloGiocatore(eventi, squadra, calotta) {
+  const targetNum = parseInt(calotta, 10);
+  if (!Number.isFinite(targetNum)) return null;
+  let falli = 0;
+  for (const ev of eventi) {
+    if (ev.squadra !== squadra || parseInt(ev.calotta, 10) !== targetNum) continue;
+    const isFallo = (ev.sigla === 'ET' || ev.sigla === 'TR' || ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED');
+    if (!isFallo) continue;
+    falli += 1;
+    if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || falli >= 3) {
+      return chiaveCronologica(ev);
+    }
+  }
+  return null;
+}
+
 function ricalcolaStatoDaEventi() {
   ordinaEventiCronologicamente();
 
@@ -653,6 +779,7 @@ function ricalcolaStatoDaEventi() {
 
     if (ev.sigla === 'GOL') {
       if (giocatore) giocatore.reti += 1;
+      if (!statoGara.parziali[ev.tempo]) statoGara.parziali[ev.tempo] = { B: 0, N: 0 };
       if (ev.squadra === 'B') {
         statoGara.scoreB += 1;
         statoGara.parziali[ev.tempo].B += 1;
@@ -746,11 +873,14 @@ function selezionaGiocatorePerAzione(squadra, num) {
   giocatoreSelezionatoAzione = { squadra, calotta: num, nome: g.nome };
   const bar = document.getElementById('quickActionBar');
   const target = document.getElementById('quickActionTarget');
-  const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
 
   if (target) {
     target.textContent = `#${num} ${squadra === 'B' ? 'Bianca' : 'Nera'} (${g.nome}) - ${g.falli.length}/3 falli`;
   }
+  aggiornaQuarterUI();
+  const minQuick = document.getElementById('minutoQuickInput');
+  const minMain = document.getElementById('minutoInput');
+  if (minQuick && minMain) minQuick.value = minMain.value;
   if (bar) bar.style.display = 'block';
 
   document.querySelectorAll('.player-row').forEach(el => el.classList.remove('selected'));
@@ -765,11 +895,27 @@ function chiudiQuickAction() {
   document.querySelectorAll('.player-row').forEach(el => el.classList.remove('selected'));
 }
 
+function leggiMinutoCorrenteValido(preferId = 'minutoInput') {
+  const el = document.getElementById(preferId) || document.getElementById('minutoInput');
+  const raw = el ? el.value : '';
+  const sec = minutoInSecondi(raw);
+  if (sec < 0) return null;
+  const formatted = formattaTempo(sec);
+  sincronizzaMinutoInputs(formatted);
+  return formatted;
+}
+
 async function eseguiAzioneRapida(sigla) {
   if (!giocatoreSelezionatoAzione) return;
   const { squadra, calotta } = giocatoreSelezionatoAzione;
   const tempo = document.getElementById('tempoCorrente').value;
-  const minuto = normalizzaMinuto(document.getElementById('minutoInput').value);
+  const minuto = leggiMinutoCorrenteValido('minutoQuickInput');
+  if (!minuto) {
+    const feedbackEl = document.getElementById('feedbackQuery');
+    if (feedbackEl) feedbackEl.textContent = '⚠️ Minuto non valido. Inserisci es. 5:45 o 545.';
+    document.getElementById('minutoQuickInput')?.focus();
+    return;
+  }
 
   await registraEventoStrutturato({
     tempo,
@@ -780,6 +926,29 @@ async function eseguiAzioneRapida(sigla) {
   });
 
   chiudiQuickAction();
+}
+
+async function registraTimeOutRapido(squadra) {
+  const usati = statoGara.eventi.filter(ev => ev.squadra === squadra && ev.sigla === 'TO').length;
+  const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
+  if (usati >= 2 && !confirm(`${nomeSquadra} ha già registrato ${usati} Time Out. Vuoi registrarne un altro?`)) {
+    return;
+  }
+  const tempo = document.getElementById('tempoCorrente').value;
+  const preferId = statoGara.usaCronometro ? 'minutoInput' : 'minutoTabellone';
+  const minuto = leggiMinutoCorrenteValido(preferId);
+  if (!minuto) {
+    const feedbackEl = document.getElementById('feedbackQuery');
+    if (feedbackEl) feedbackEl.textContent = '⚠️ Minuto non valido per il Time Out.';
+    return;
+  }
+  await registraEventoStrutturato({
+    tempo,
+    minuto,
+    squadra,
+    calotta: 'X',
+    sigla: 'TO'
+  });
 }
 
 // ==========================================
@@ -840,9 +1009,20 @@ async function processaComando() {
     return;
   }
 
+  let minutoEvento = parsed.minuto;
+  if (minutoEvento) {
+    if (!statoGara.usaCronometro) sincronizzaMinutoInputs(minutoEvento);
+  } else {
+    minutoEvento = leggiMinutoCorrenteValido('minutoInput');
+    if (!minutoEvento) {
+      feedbackEl.textContent = '⚠️ Minuto non valido. Inserisci es. 5:45 oppure dillo nel comando.';
+      return;
+    }
+  }
+
   const ok = await registraEventoStrutturato({
     tempo: document.getElementById('tempoCorrente').value,
-    minuto: normalizzaMinuto(document.getElementById('minutoInput').value),
+    minuto: minutoEvento,
     squadra: parsed.squadra,
     calotta: parsed.calotta,
     sigla: parsed.sigla
@@ -859,6 +1039,8 @@ function apriEditModal(index) {
   document.getElementById('editSquadra').value = ev.squadra;
   document.getElementById('editCalotta').value = ev.calotta;
   document.getElementById('editSigla').value = ev.sigla;
+  const errEl = document.getElementById('editError');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
   document.getElementById('editModal').style.display = 'flex';
 }
 
@@ -866,23 +1048,66 @@ function chiudiEditModal() {
   document.getElementById('editModal').style.display = 'none';
 }
 
+function mostraErroreEdit(msg) {
+  const errEl = document.getElementById('editError');
+  if (errEl) {
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+  } else {
+    alert(msg);
+  }
+}
+
 async function salvaModificaEvento() {
   const idx = parseInt(document.getElementById('editIndex').value, 10);
   const sigla = document.getElementById('editSigla').value;
-  let calotta = document.getElementById('editCalotta').value.trim().toUpperCase();
-  if (sigla === 'TO') calotta = 'X';
-  else calotta = parseInt(calotta, 10) || 1;
+  const tempo = document.getElementById('editTempo').value;
+  const squadra = document.getElementById('editSquadra').value;
+  const rawMinuto = document.getElementById('editMinuto').value;
+  const sec = minutoInSecondi(rawMinuto);
+  if (sec < 0) {
+    mostraErroreEdit('Minuto non valido (usa es. 5:45 o 545).');
+    return;
+  }
 
-  statoGara.eventi[idx] = {
+  let calotta;
+  if (sigla === 'TO') {
+    calotta = 'X';
+  } else {
+    const rawCalotta = document.getElementById('editCalotta').value.trim();
+    if (!/^\d{1,2}$/.test(rawCalotta)) {
+      mostraErroreEdit('Inserisci un numero di calotta valido (1-15).');
+      return;
+    }
+    calotta = parseInt(rawCalotta, 10);
+    if (calotta < 1 || calotta > 15) {
+      mostraErroreEdit('La calotta deve essere compresa tra 1 e 15.');
+      return;
+    }
+  }
+
+  const eventoModificato = {
     id: statoGara.eventi[idx].id,
-    tempo: document.getElementById('editTempo').value,
-    minuto: normalizzaMinuto(document.getElementById('editMinuto').value),
-    squadra: document.getElementById('editSquadra').value,
+    tempo,
+    minuto: formattaTempo(sec),
+    squadra,
     calotta,
     sigla,
     punteggio: ''
   };
 
+  if (calotta !== 'X') {
+    const altriEventi = statoGara.eventi
+      .filter((_, i) => i !== idx)
+      .sort((a, b) => (chiaveCronologica(a) - chiaveCronologica(b)) || ((a.id || 0) - (b.id || 0)));
+    const chiaveEspulsioneAltro = calcolaChiave3FalloGiocatore(altriEventi, squadra, calotta);
+    if (chiaveEspulsioneAltro != null && chiaveCronologica(eventoModificato) >= chiaveEspulsioneAltro) {
+      mostraErroreEdit(`Calottina ${squadra} #${calotta} è già espulsa definitivamente prima o in questo istante.`);
+      return;
+    }
+  }
+
+  statoGara.eventi[idx] = eventoModificato;
   chiudiEditModal();
   ricalcolaStatoDaEventi();
   aggiornaUI();
@@ -944,8 +1169,13 @@ function chiudiAlert() {
 // 6. GESTIONE DISTINTE PRE-GARA & RUOLI
 // ==========================================
 let tabRosterAttivo = 'B';
+let rosterSnapshot = null;
 
 function apriRosterModal() {
+  rosterSnapshot = {
+    rosterB: structuredClone(statoGara.rosterB),
+    rosterN: structuredClone(statoGara.rosterN)
+  };
   document.getElementById('tabBtnB').textContent = `BIANCA (${statoGara.sqBianca})`;
   document.getElementById('tabBtnN').textContent = `NERA (${statoGara.sqNera})`;
   cambiaTabRoster(tabRosterAttivo);
@@ -953,6 +1183,12 @@ function apriRosterModal() {
 }
 
 function chiudiRosterModal() {
+  if (rosterSnapshot) {
+    statoGara.rosterB = rosterSnapshot.rosterB;
+    statoGara.rosterN = rosterSnapshot.rosterN;
+    rosterSnapshot = null;
+  }
+  document.getElementById('rosterEditList').innerHTML = '';
   document.getElementById('rosterModal').style.display = 'none';
 }
 
@@ -1009,12 +1245,20 @@ function importaRosterDaTesto() {
     const tessera = matchTessera ? matchTessera[1] : '';
     let nome = pulita.replace(tessera, '').replace(/[\-\|;,]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Riconoscimento Capitano e Portiere
-    if (/\b(?:cap|capitano|\(c\))\b/i.test(nome) && !nome.includes('(Cap.)')) {
-      nome = nome.replace(/\b(?:cap|capitano|\(c\))\b\.?/i, '').trim() + ' (Cap.)';
-    } else if (/\b(?:p|portiere)\b/i.test(nome) && !nome.includes('(P)')) {
-      nome = nome.replace(/\b(?:p|portiere)\b\.?/i, '').trim() + ' (P)';
+    // Riconoscimento Capitano e Portiere (anche insieme sullo stesso giocatore)
+    let isCap = false;
+    let isPortiere = false;
+    if (/(?:\(\s*c(?:ap\.?)?\s*\)|\b(?:cap|capitano)\b)/i.test(nome) && !nome.includes('(Cap.)')) {
+      nome = nome.replace(/(?:\(\s*c(?:ap\.?)?\s*\)|\b(?:cap|capitano)\b\.?)/gi, '').trim();
+      isCap = true;
     }
+    if (/(?:\(\s*p\s*\)|\bportiere\b)/i.test(nome) && !nome.includes('(P)')) {
+      nome = nome.replace(/(?:\(\s*p\s*\)|\bportiere\b\.?)/gi, '').trim();
+      isPortiere = true;
+    }
+    nome = nome.replace(/\s+/g, ' ').trim();
+    if (isCap) nome += ' (Cap.)';
+    if (isPortiere) nome += ' (P)';
 
     const inpNome = document.getElementById(`r_nome_${numCalotta}`);
     const inpTess = document.getElementById(`r_tess_${numCalotta}`);
@@ -1025,6 +1269,7 @@ function importaRosterDaTesto() {
 
 async function salvaRostersManuali() {
   leggiCampiRosterCorrente();
+  rosterSnapshot = null;
   aggiornaUI();
   await salvaStatoGara(statoGara);
   chiudiRosterModal();
@@ -1033,11 +1278,41 @@ async function salvaRostersManuali() {
 // ==========================================
 // 7. AGGIORNAMENTO DASHBOARD LIVE
 // ==========================================
+function calcolaRigoriSicuro(testoRigori) {
+  if (!String(testoRigori || '').trim()) return null;
+  try {
+    const res = leggiTiriDiRigoreFIN(testoRigori);
+    return res.tiri.length > 0 ? res : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function aggiornaUI() {
   document.getElementById('lblBianca').textContent = statoGara.sqBianca;
   document.getElementById('lblNera').textContent = statoGara.sqNera;
   document.getElementById('scoreB').textContent = statoGara.scoreB;
   document.getElementById('scoreN').textContent = statoGara.scoreN;
+
+  const rigoriInfo = calcolaRigoriSicuro(statoGara.tiriRigore);
+  const rigoriBanner = document.getElementById('scoreboardRigori');
+  if (rigoriBanner) {
+    if (rigoriInfo) {
+      const totB = statoGara.scoreB + rigoriInfo.punteggio.B;
+      const totN = statoGara.scoreN + rigoriInfo.punteggio.N;
+      rigoriBanner.textContent = `Rigori: B ${rigoriInfo.punteggio.B} - N ${rigoriInfo.punteggio.N} • Finale d.t.r.: ${totB} - ${totN}`;
+      rigoriBanner.style.display = 'block';
+    } else {
+      rigoriBanner.style.display = 'none';
+    }
+  }
+
+  const toB = statoGara.eventi.filter(ev => ev.squadra === 'B' && ev.sigla === 'TO').length;
+  const toN = statoGara.eventi.filter(ev => ev.squadra === 'N' && ev.sigla === 'TO').length;
+  const btnToB = document.getElementById('btnToB');
+  const btnToN = document.getElementById('btnToN');
+  if (btnToB) btnToB.textContent = `⏱ TO BIANCA (${toB}/2)`;
+  if (btnToN) btnToN.textContent = `⏱ TO NERA (${toN}/2)`;
 
   const renderRoster = (lista, elId, squadra) => {
     const container = document.getElementById(elId);
@@ -1111,6 +1386,7 @@ function aggiornaPunteggioRigoriAnteprima() {
     anteprima.textContent = `Rigori: ${e.message.split(':')[0] || 'formato non valido'}`;
     anteprima.style.color = '#f87171';
   }
+  aggiornaUI();
 }
 
 async function aggiungiTiroRigoreGuidato(esito) {
@@ -1248,9 +1524,16 @@ async function condividiUltimoPDF() {
 function stampaViaIframe(blobUrl) {
   const iframe = document.createElement('iframe');
   iframe.style.display = 'none';
+  const rimuovi = () => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); };
   iframe.onload = () => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
+    try {
+      iframe.contentWindow.addEventListener('afterprint', rimuovi, { once: true });
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (e) {
+      rimuovi();
+    }
+    setTimeout(rimuovi, 60000);
   };
   iframe.src = blobUrl;
   document.body.appendChild(iframe);
@@ -1322,6 +1605,10 @@ async function apriArchivioModal() {
   } else {
     container.innerHTML = lista.map(p => {
       const isCorrente = (p.matchId === statoGara.matchId);
+      const rigoriInfo = calcolaRigoriSicuro(p.tiriRigore);
+      const rigoriTxt = rigoriInfo
+        ? ` <span style="font-size:0.78rem; color:#94a3b8;">(d.t.r. ${p.scoreB + rigoriInfo.punteggio.B}-${p.scoreN + rigoriInfo.punteggio.N})</span>`
+        : '';
       const dataFmt = new Date(p.dataOraInizio).toLocaleString('it-IT', {
         day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
       });
@@ -1330,7 +1617,7 @@ async function apriArchivioModal() {
           <div style="font-size:0.85rem;">
             <div style="color:#94a3b8; font-size:0.75rem;">${escapeHtml(dataFmt)} • ${escapeHtml(p.categoria || 'Cat. N/D')} ${isCorrente ? '<strong>(IN USO)</strong>' : ''}</div>
             <div style="font-weight:bold; font-size:0.95rem; margin:2px 0;">
-              ${escapeHtml(p.sqBianca)} <span style="color:#38bdf8;">${p.scoreB} - ${p.scoreN}</span> ${escapeHtml(p.sqNera)}
+              ${escapeHtml(p.sqBianca)} <span style="color:#38bdf8;">${p.scoreB} - ${p.scoreN}</span>${rigoriTxt} ${escapeHtml(p.sqNera)}
             </div>
             <div style="color:#64748b; font-size:0.75rem;">Eventi: ${(p.eventi || []).length} • Export: v${p.versioneExport || 0}</div>
           </div>
