@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="55%" stop-color="#0369a1"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="capGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="75%" stop-color="#f1f5f9"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="earGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#020617" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Sfondo pieno (adatto anche per maskable icon) -->
+  <rect width="512" height="512" fill="url(#bgGrad)"/>
+
+  <!-- Onde stilizzate sul fondo -->
+  <path d="M0 385 Q 85 360, 170 385 T 340 385 T 512 385 L 512 512 L 0 512 Z" fill="#0c4a6e" opacity="0.55"/>
+  <path d="M0 415 Q 95 392, 190 415 T 380 415 T 512 415 L 512 512 L 0 512 Z" fill="#0f172a" opacity="0.65"/>
+  <path d="M0 375 Q 85 352, 170 375 T 340 375 T 512 375" fill="none" stroke="#38bdf8" stroke-width="5" opacity="0.35"/>
+
+  <!-- Sottogola (Chin strap) -->
+  <path d="M 142 308 Q 256 382 370 308" fill="none" stroke="#0f172a" stroke-width="18" stroke-linecap="round"/>
+  <path d="M 142 308 Q 256 382 370 308" fill="none" stroke="#e2e8f0" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Gruppo Calottina + Paraorecchie centrato nella Safe Zone (80%) -->
+  <g filter="url(#dropShadow)">
+    <!-- Paraorecchio Sinistro -->
+    <g>
+      <path d="M 148 218 C 110 218, 98 248, 102 282 C 106 312, 126 326, 152 318 Z" fill="url(#earGrad)" stroke="#0f172a" stroke-width="6" stroke-linejoin="round"/>
+      <ellipse cx="127" cy="270" rx="18" ry="30" fill="none" stroke="#bae6fd" stroke-width="3" opacity="0.7"/>
+      <!-- Fori acustici paraorecchio sinistro -->
+      <circle cx="126" cy="252" r="4.5" fill="#0f172a"/>
+      <circle cx="125" cy="270" r="5" fill="#0f172a"/>
+      <circle cx="128" cy="288" r="4.5" fill="#0f172a"/>
+    </g>
+
+    <!-- Paraorecchio Destro -->
+    <g>
+      <path d="M 364 218 C 402 218, 414 248, 410 282 C 406 312, 386 326, 360 318 Z" fill="url(#earGrad)" stroke="#0f172a" stroke-width="6" stroke-linejoin="round"/>
+      <ellipse cx="385" cy="270" rx="18" ry="30" fill="none" stroke="#bae6fd" stroke-width="3" opacity="0.7"/>
+      <!-- Fori acustici paraorecchio destro -->
+      <circle cx="386" cy="252" r="4.5" fill="#0f172a"/>
+      <circle cx="387" cy="270" r="5" fill="#0f172a"/>
+      <circle cx="384" cy="288" r="4.5" fill="#0f172a"/>
+    </g>
+
+    <!-- Calotta Principale -->
+    <path d="M 142 292 C 138 182, 188 122, 256 122 C 324 122, 374 182, 370 292 Q 256 318 142 292 Z" fill="url(#capGrad)" stroke="#0f172a" stroke-width="6" stroke-linejoin="round"/>
+
+    <!-- Banda centrale superiore stile calottina da gara -->
+    <path d="M 228 125 Q 256 120 284 125 L 278 168 Q 256 164 234 168 Z" fill="#0284c7" opacity="0.9"/>
+
+    <!-- Cuciture laterali della calottina -->
+    <path d="M 205 134 C 185 180, 178 232, 176 296" fill="none" stroke="#94a3b8" stroke-width="3" stroke-dasharray="8 6" opacity="0.7"/>
+    <path d="M 307 134 C 327 180, 334 232, 336 296" fill="none" stroke="#94a3b8" stroke-width="3" stroke-dasharray="8 6" opacity="0.7"/>
+
+    <!-- Piccolo accento tricolore FIN sul bordo inferiore della calottina -->
+    <path d="M 196 299 Q 216 303 236 304" fill="none" stroke="#16a34a" stroke-width="6" stroke-linecap="round"/>
+    <path d="M 236 304 Q 256 305 276 304" fill="none" stroke="#f8fafc" stroke-width="6"/>
+    <path d="M 276 304 Q 296 303 316 299" fill="none" stroke="#dc2626" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- Scritta FIN centrale ben leggibile anche a 48px -->
+    <text x="256" y="254" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="84" font-weight="900" fill="#0f172a" text-anchor="middle" letter-spacing="4">FIN</text>
+  </g>
+</svg>
