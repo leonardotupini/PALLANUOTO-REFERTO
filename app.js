@@ -609,43 +609,119 @@ function rilevaSquadra(seg, distintive) {
   return { squadra: punteggioB > punteggioN ? 'B' : 'N', ambigua: false };
 }
 
+const ORDINALI_ITALIANI = {
+  primo: 1, prima: 1, secondo: 2, seconda: 2, terzo: 3, terza: 3, quarto: 4, quarta: 4,
+  quinto: 5, quinta: 5, sesto: 6, sesta: 6, settimo: 7, settima: 7, ottavo: 8, ottava: 8
+};
+
+const NUMERI_SECONDI_BASE = {
+  zero: 0, ...NUMERI_IN_LETTERE,
+  sedici: 16, diciassette: 17, diciotto: 18, diciannove: 19
+};
+
+const DECINE_ITALIANE = { vent: 20, trent: 30, quarant: 40, cinquant: 50 };
+const UNITA_ITALIANE = { uno: 1, due: 2, tre: 3, quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9 };
+
+function italianoInNumero(token) {
+  const w = String(token || '').trim().toLowerCase();
+  if (/^\d{1,2}$/.test(w)) return parseInt(w, 10);
+  if (Object.prototype.hasOwnProperty.call(NUMERI_SECONDI_BASE, w)) return NUMERI_SECONDI_BASE[w];
+  for (const [rad, dec] of Object.entries(DECINE_ITALIANE)) {
+    if (w === `${rad}i` || w === `${rad}a`) return dec;
+    if (w.startsWith(rad)) {
+      const resto = w.slice(rad.length).replace(/^[ia](?!(?:uno|otto)$)/, '');
+      if (Object.prototype.hasOwnProperty.call(UNITA_ITALIANE, resto)) {
+        return dec + UNITA_ITALIANE[resto];
+      }
+    }
+  }
+  return null;
+}
+
+function estraiTempoDaSegmento(seg) {
+  let tempo = null;
+  const pulito = seg.replace(
+    /(?<![\p{L}\p{N}])(primo|prima|secondo|seconda|terzo|terza|quarto|quarta|[1-4]\s*[°'’]?)\s+tempo(?![\p{L}\p{N}])/iu,
+    (_, g1) => {
+      const key = g1.trim().toLowerCase();
+      const num = ORDINALI_ITALIANI[key] || parseInt(key, 10);
+      if (num >= 1 && num <= 4) tempo = ORDINE_TEMPI[num - 1];
+      return ' ';
+    }
+  );
+  return { tempo, senzaTempo: pulito };
+}
+
 function estraiMinutoDaSegmento(seg) {
-  let pulito = seg;
+  let pulito = seg.replace(
+    /(?<![\p{L}\p{N}])(primo|prima|secondo|seconda|terzo|terza|quarto|quarta|quinto|quinta|sesto|sesta|settimo|settima|ottavo|ottava)\s+(minut[oi])(?![\p{L}\p{N}])/giu,
+    (_, ord, minWord) => `${ORDINALI_ITALIANI[ord.toLowerCase()]}° ${minWord}`
+  );
   let minuto = null;
 
   const formattaMin = (mStr, sStr) => {
-    const m = parseInt(mStr, 10);
-    const s = sStr !== undefined ? parseInt(sStr, 10) : 0;
-    if (m < 0 || m > 15 || s < 0 || s > 59) return null;
+    const m = italianoInNumero(mStr);
+    const s = sStr !== undefined ? italianoInNumero(sStr) : 0;
+    if (m === null || s === null || m < 0 || m > 15 || s < 0 || s > 59) return null;
     return formattaTempo(m * 60 + s);
   };
 
-  const patterns = [
-    /(?<![\p{L}\p{N}])(?:al\s+|a\s+)?minut[oi]\s+(\d{1,2})\s*(?:e|:|\.|,)\s*(\d{1,2})(?![\p{L}\p{N}])/iu,
-    /(?<![\p{L}\p{N}])(?:al\s+|a\s+)?(\d{1,2})\s+minut[oi]\s*(?:e\s*)?(\d{1,2})(?![\p{L}\p{N}])/iu,
-    /(?<![\p{L}\p{N}])(\d{1,2})[:.](\d{2})(?![\p{L}\p{N}])/u,
-    /(?<![\p{L}\p{N}])(?:al\s+)?minut[oi]\s+(\d{1,2})(?![\p{L}\p{N}])/iu
-  ];
+  const rimuoviMatch = (match, parsed) => {
+    minuto = parsed;
+    pulito = `${pulito.slice(0, match.index)} ${pulito.slice(match.index + match[0].length)}`;
+  };
 
-  for (const re of patterns) {
-    const match = pulito.match(re);
-    if (match) {
-      const parsed = formattaMin(match[1], match[2]);
-      if (parsed) {
-        minuto = parsed;
-        pulito = `${pulito.slice(0, match.index)} ${pulito.slice(match.index + match[0].length)}`;
-        break;
-      }
+  const p1 = pulito.match(/(?<![\p{L}\p{N}])(?:al\s+|a\s+)?minut[oi]\s+(\d{1,2}|zero)\s*(?:e|:|\.|,)\s*(\d{1,2}|[\p{L}]+)(?![\p{L}\p{N}])/iu);
+  if (p1) {
+    const parsed = formattaMin(p1[1], p1[2]);
+    if (parsed) { rimuoviMatch(p1, parsed); return { minuto, senzaMinuti: pulito }; }
+  }
+
+  const p2 = pulito.match(/(?<![\p{L}\p{N}])(?:al\s+|a\s+)?(\d{1,2})\s*[°'’]?\s*minut[oi]\s*(?:e|:|\.|,|\s+)\s*(\d{1,2}|[\p{L}]+)(?![\p{L}\p{N}])/iu);
+  if (p2) {
+    const parsed = formattaMin(p2[1], p2[2]);
+    if (parsed) { rimuoviMatch(p2, parsed); return { minuto, senzaMinuti: pulito }; }
+  }
+
+  const p3 = pulito.match(/(?<![\p{L}\p{N}])(\d{1,2})[:.](\d{2})(?![\p{L}\p{N}])/u);
+  if (p3) {
+    const parsed = formattaMin(p3[1], p3[2]);
+    if (parsed) { rimuoviMatch(p3, parsed); return { minuto, senzaMinuti: pulito }; }
+  }
+
+  const p4 = pulito.match(/(?<![\p{L}\p{N}])(al\s+|a\s+)?(\d{1,2}|zero)\s+e\s+(\d{1,2}|[\p{L}]+)(?![\p{L}\p{N}])/iu);
+  if (p4) {
+    const secVal = italianoInNumero(p4[3]);
+    const haPrefisso = Boolean(p4[1]);
+    const formatoDueCifre = /^\d{2}$/.test(p4[3]);
+    if (secVal !== null && (haPrefisso || secVal >= 16 || formatoDueCifre)) {
+      const parsed = formattaMin(p4[2], p4[3]);
+      if (parsed) { rimuoviMatch(p4, parsed); return { minuto, senzaMinuti: pulito }; }
     }
+  }
+
+  const p5 = pulito.match(/(?<![\p{L}\p{N}])(?:al\s+|a\s+)?(\d{1,2})\s*[°'’]?\s*minut[oi](?![\p{L}\p{N}])/iu);
+  if (p5) {
+    const parsed = formattaMin(p5[1]);
+    if (parsed) { rimuoviMatch(p5, parsed); return { minuto, senzaMinuti: pulito }; }
+  }
+
+  const p6 = pulito.match(/(?<![\p{L}\p{N}])(?:al\s+)?minut[oi]\s+(\d{1,2}|zero)(?![\p{L}\p{N}])/iu);
+  if (p6) {
+    const parsed = formattaMin(p6[1]);
+    if (parsed) { rimuoviMatch(p6, parsed); return { minuto, senzaMinuti: pulito }; }
   }
 
   return { minuto, senzaMinuti: pulito };
 }
 
 function estraiCampiSegmento(seg, distintive) {
-  const campi = { squadra: null, calotta: null, sigla: null, minuto: null, query: false, ambigua: false };
+  const campi = { squadra: null, calotta: null, sigla: null, minuto: null, tempo: null, query: false, ambigua: false };
 
-  const { minuto, senzaMinuti } = estraiMinutoDaSegmento(seg);
+  const { tempo, senzaTempo } = estraiTempoDaSegmento(seg);
+  campi.tempo = tempo;
+
+  const { minuto, senzaMinuti } = estraiMinutoDaSegmento(senzaTempo);
   campi.minuto = minuto;
 
   const scorciatoia = senzaMinuti.match(RE_SCORCIATOIA);
@@ -689,7 +765,7 @@ function parseComandoColloquiale(testo) {
   const distintive = paroleDistintiveSquadre();
   const segmenti = t.split(RE_CORREZIONE).map(s => s.trim()).filter(Boolean);
 
-  const ris = { squadra: null, calotta: null, sigla: null, minuto: null, query: false, ambigua: false };
+  const ris = { squadra: null, calotta: null, sigla: null, minuto: null, tempo: null, query: false, ambigua: false };
   segmenti.forEach(seg => {
     const c = estraiCampiSegmento(seg, distintive);
     if (c.squadra) { ris.squadra = c.squadra; ris.ambigua = false; }
@@ -697,13 +773,14 @@ function parseComandoColloquiale(testo) {
     if (c.calotta) ris.calotta = c.calotta;
     if (c.sigla) ris.sigla = c.sigla;
     if (c.minuto) ris.minuto = c.minuto;
+    if (c.tempo) ris.tempo = c.tempo;
     if (c.query) ris.query = true;
   });
 
   if (ris.query) {
     return { tipo: 'QUERY', squadra: ris.squadra, calotta: ris.calotta, ambigua: ris.ambigua };
   }
-  return { tipo: 'EVENTO', squadra: ris.squadra, calotta: ris.calotta, sigla: ris.sigla, minuto: ris.minuto, ambigua: ris.ambigua };
+  return { tipo: 'EVENTO', squadra: ris.squadra, calotta: ris.calotta, sigla: ris.sigla, minuto: ris.minuto, tempo: ris.tempo, ambigua: ris.ambigua };
 }
 
 // ==========================================
@@ -1021,7 +1098,7 @@ async function processaComando() {
   }
 
   const ok = await registraEventoStrutturato({
-    tempo: document.getElementById('tempoCorrente').value,
+    tempo: parsed.tempo || document.getElementById('tempoCorrente').value,
     minuto: minutoEvento,
     squadra: parsed.squadra,
     calotta: parsed.calotta,
@@ -1368,6 +1445,11 @@ function aggiornaUI() {
         </div>
       </div>`
     ).join('');
+
+  const reviewModal = document.getElementById('reviewModal');
+  if (reviewModal && reviewModal.style.display === 'block') {
+    renderRiepilogoModal();
+  }
 }
 
 // ==========================================
@@ -1674,6 +1756,153 @@ async function scaricaBackupArchivio() {
   const dataFmt = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
   scaricaBlob(blobUrl, `BACKUP_REFERTI_FIN_${dataFmt}.json`);
   setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+}
+
+// ==========================================
+// 11. RIEPILOGO FINALE PRE-PDF (PER TEMPO E MINUTO)
+// ==========================================
+let azioneRiepilogoRichiesta = null;
+
+function nomeGiocatorePerRiepilogo(ev) {
+  if (ev.sigla === 'TO' || ev.calotta === 'X') return 'Time Out';
+  const roster = ev.squadra === 'B' ? statoGara.rosterB : statoGara.rosterN;
+  const g = roster.find(p => p.num === parseInt(ev.calotta, 10));
+  if (!g || g.nome.startsWith('Giocatore ')) return `#${ev.calotta}`;
+  return `#${ev.calotta} ${g.nome}`;
+}
+
+function renderRiepilogoModal() {
+  const headerEl = document.getElementById('reviewSummaryHeader');
+  const alertsEl = document.getElementById('reviewAlerts');
+  const bodyEl = document.getElementById('reviewBody');
+  if (!headerEl || !alertsEl || !bodyEl) return;
+
+  const rigoriInfo = calcolaRigoriSicuro(statoGara.tiriRigore);
+  const totB = statoGara.scoreB + (rigoriInfo ? rigoriInfo.punteggio.B : 0);
+  const totN = statoGara.scoreN + (rigoriInfo ? rigoriInfo.punteggio.N : 0);
+
+  const parzialiHtml = ORDINE_TEMPI.map((t, i) => {
+    const p = statoGara.parziali[t] || { B: 0, N: 0 };
+    return `<span>${i + 1}°T: <strong>${p.B}-${p.N}</strong></span>`;
+  }).join(' • ');
+
+  headerEl.innerHTML = `
+    <div style="font-size:1rem; font-weight:800; margin-bottom:4px;">
+      ${escapeHtml(statoGara.sqBianca)} <span style="color:#38bdf8;">${statoGara.scoreB} - ${statoGara.scoreN}</span> ${escapeHtml(statoGara.sqNera)}
+      ${rigoriInfo ? `<span style="font-size:0.82rem; color:#94a3b8;">(d.t.r. ${totB}-${totN})</span>` : ''}
+    </div>
+    <div style="color:#cbd5e1; font-size:0.8rem; margin-bottom:4px;">Parziali: ${parzialiHtml}</div>
+    <div style="color:#94a3b8; font-size:0.78rem;">Totale azioni registrate: <strong>${statoGara.eventi.length}</strong></div>
+  `;
+
+  const minutoInizioQuarto = formattaTempo(statoGara.durataQuarto || 420);
+  const eventiAlMinutoIniziale = statoGara.eventi.filter(ev => ev.minuto === minutoInizioQuarto);
+  const avvisi = [];
+  if (statoGara.eventi.length === 0) {
+    avvisi.push('Nessun evento registrato nel referto.');
+  }
+  if (eventiAlMinutoIniziale.length > 0) {
+    avvisi.push(`${eventiAlMinutoIniziale.length} azion${eventiAlMinutoIniziale.length === 1 ? 'e risulta' : 'i risultano'} ancora al minuto iniziale (${minutoInizioQuarto}): verifica se il minuto è corretto.`);
+  }
+  if (!String(statoGara.numeroGara || '').trim() || !String(statoGara.arbitro1 || '').trim()) {
+    avvisi.push('Promemoria: verifica numero gara e nominativo Arbitro 1 nei dati del verbale.');
+  }
+
+  if (avvisi.length > 0) {
+    alertsEl.innerHTML = avvisi.map(a => `<div>⚠️ ${escapeHtml(a)}</div>`).join('');
+    alertsEl.style.display = 'block';
+  } else {
+    alertsEl.style.display = 'none';
+  }
+
+  const blocchiTempi = ORDINE_TEMPI.map((tempo) => {
+    const p = statoGara.parziali[tempo] || { B: 0, N: 0 };
+    const righe = statoGara.eventi
+      .map((ev, realIdx) => ({ ev, realIdx }))
+      .filter(({ ev }) => ev.tempo === tempo);
+
+    const righeHtml = righe.length === 0
+      ? '<div style="color:#64748b; font-size:0.8rem; padding:4px 0;">Nessuna azione registrata in questo tempo.</div>'
+      : righe.map(({ ev, realIdx }) => {
+          const isMinIniziale = ev.minuto === minutoInizioQuarto;
+          const descrGioc = nomeGiocatorePerRiepilogo(ev);
+          const badgeSq = ev.squadra === 'B'
+            ? '<span class="badge-b" style="font-size:0.7rem; padding:1px 5px;">B</span>'
+            : '<span class="badge-n" style="font-size:0.7rem; padding:1px 5px;">N</span>';
+          return `
+            <div class="review-row">
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <strong style="font-variant-numeric:tabular-nums;">${escapeHtml(ev.minuto)}</strong>
+                ${isMinIniziale ? `<span class="badge-warn-min">verifica min</span>` : ''}
+                ${badgeSq}
+                <span>${escapeHtml(descrGioc)}</span>
+                <strong>${escapeHtml(ev.sigla)}</strong>
+                ${ev.punteggio ? `<span style="color:#38bdf8;">(${escapeHtml(ev.punteggio)})</span>` : ''}
+              </div>
+              <div class="log-actions">
+                <button type="button" class="btn-mini" onclick="apriEditModal(${realIdx})">Modifica</button>
+                <button type="button" class="btn-mini danger" onclick="eliminaEvento(${realIdx})">X</button>
+              </div>
+            </div>`;
+        }).join('');
+
+    return `
+      <div class="review-tempo-card">
+        <div class="review-tempo-head">
+          <span>${escapeHtml(tempo)}</span>
+          <span>Parziale: ${p.B} - ${p.N} • ${righe.length} azioni</span>
+        </div>
+        ${righeHtml}
+      </div>`;
+  }).join('');
+
+  let rigoriHtml = '';
+  if (rigoriInfo) {
+    rigoriHtml = `
+      <div class="review-tempo-card">
+        <div class="review-tempo-head">
+          <span>TIRI DI RIGORE</span>
+          <span>B ${rigoriInfo.punteggio.B} - N ${rigoriInfo.punteggio.N}</span>
+        </div>
+        ${rigoriInfo.tiri.map((t, i) => `
+          <div class="review-row">
+            <span>Tiro ${i + 1}: <strong>${escapeHtml(t.squadra)} #${escapeHtml(t.calotta)}</strong> — ${escapeHtml(t.esito)} (${escapeHtml(t.punteggio)})</span>
+          </div>`).join('')}
+      </div>`;
+  } else if (String(statoGara.tiriRigore || '').trim()) {
+    rigoriHtml = `
+      <div class="review-tempo-card" style="border-color:#dc2626;">
+        <div style="color:#f87171; font-size:0.82rem; font-weight:bold;">
+          ⚠️ Il riquadro Tiri di rigore contiene un formato non valido: correggilo prima di generare il PDF.
+        </div>
+      </div>`;
+  }
+
+  bodyEl.innerHTML = blocchiTempi + rigoriHtml;
+
+  const btnSave = document.getElementById('btnConfirmSavePdf');
+  const btnPrint = document.getElementById('btnConfirmPrintPdf');
+  if (btnSave && btnPrint) {
+    btnSave.style.outline = azioneRiepilogoRichiesta === false ? '2px solid #86efac' : 'none';
+    btnPrint.style.outline = azioneRiepilogoRichiesta === true ? '2px solid #7dd3fc' : 'none';
+  }
+}
+
+function apriRiepilogoModal(stampaSubito = null) {
+  azioneRiepilogoRichiesta = stampaSubito;
+  ricalcolaStatoDaEventi();
+  aggiornaUI();
+  renderRiepilogoModal();
+  document.getElementById('reviewModal').style.display = 'block';
+}
+
+function chiudiRiepilogoModal() {
+  document.getElementById('reviewModal').style.display = 'none';
+}
+
+async function confermaEsportazioneDaRiepilogo(stampaSubito) {
+  chiudiRiepilogoModal();
+  await esportaEStampaPDF(stampaSubito);
 }
 
 async function importaBackupArchivioDaFile(inputEl) {

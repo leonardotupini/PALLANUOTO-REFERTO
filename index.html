@@ -74,7 +74,12 @@
     #alertModal button { background: white; color: #dc2626; max-width: 240px; margin-top: 20px; font-size: 1.2rem; }
 
     #editModal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.92); z-index: 9998; justify-content: center; align-items: center; padding: 16px; }
-    #rosterModal, #archiveModal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.96); z-index: 9997; overflow-y: auto; padding: 12px; }
+    #rosterModal, #archiveModal, #reviewModal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.96); z-index: 9997; overflow-y: auto; padding: 12px; }
+    .review-tempo-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+    .review-tempo-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 0.88rem; color: #38bdf8; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #334155; }
+    .review-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px dashed #1e293b; font-size: 0.82rem; }
+    .review-row:last-child { border-bottom: none; }
+    .badge-warn-min { background: #78350f; color: #fde68a; border: 1px solid #d97706; border-radius: 4px; padding: 1px 5px; font-size: 0.72rem; font-weight: 700; }
     .modal-card { background: var(--card); border: 1px solid #475569; border-radius: 12px; padding: 16px; width: 100%; max-width: 480px; margin: 0 auto; }
     .roster-table-row { display: grid; grid-template-columns: 36px 2fr 1.2fr; gap: 6px; align-items: center; margin-bottom: 6px; }
     .roster-table-row input { padding: 6px 8px; font-size: 0.85rem; }
@@ -367,9 +372,12 @@
   </details>
 
   <!-- 8. Azioni finali e archivio -->
+  <button type="button" style="background:#0369a1; margin-bottom:8px;" onclick="apriRiepilogoModal(null)">
+    📋 RIEPILOGO AZIONI PER TEMPI E MINUTI
+  </button>
   <div class="grid-2">
-    <button type="button" class="success" onclick="esportaEStampaPDF(false)">SALVA PDF FIN</button>
-    <button type="button" onclick="esportaEStampaPDF(true)">STAMPA / CONDIVIDI</button>
+    <button type="button" class="success" onclick="apriRiepilogoModal(false)">VERIFICA E SALVA PDF FIN</button>
+    <button type="button" onclick="apriRiepilogoModal(true)">VERIFICA E STAMPA / CONDIVIDI</button>
   </div>
   <button type="button" id="btnCondividi" style="display:none; margin-top:8px; background:#7c3aed;" onclick="condividiUltimoPDF()">
     📤 TOCCA PER STAMPARE / CONDIVIDERE IL PDF
@@ -499,6 +507,24 @@
           <input type="file" accept=".json" style="display:none;" onchange="importaBackupArchivioDaFile(this)">
         </label>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: Riepilogo Finale per Tempi e Minuti prima del PDF -->
+  <div id="reviewModal">
+    <div class="modal-card" style="max-width: 600px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="margin:0;">Riepilogo Azioni (per Tempo e Minuto)</h3>
+        <button type="button" class="btn-mini danger" onclick="chiudiRiepilogoModal()">CHIUDI</button>
+      </div>
+      <div id="reviewSummaryHeader" style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:10px; font-size:0.85rem;"></div>
+      <div id="reviewAlerts" style="display:none; background:#451a03; border:1px solid #d97706; color:#fde68a; border-radius:8px; padding:8px 10px; margin-bottom:10px; font-size:0.8rem;"></div>
+      <div id="reviewBody"></div>
+      <div class="grid-2" style="margin-top:12px;">
+        <button type="button" id="btnConfirmSavePdf" class="success" onclick="confermaEsportazioneDaRiepilogo(false)">✅ OK, SALVA PDF FIN</button>
+        <button type="button" id="btnConfirmPrintPdf" onclick="confermaEsportazioneDaRiepilogo(true)">🖨️ OK, STAMPA / CONDIVIDI</button>
+      </div>
+      <button type="button" style="background:#334155; margin-top:8px;" onclick="chiudiRiepilogoModal()">← TORNA AL REFERTO</button>
     </div>
   </div>
 

@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'referto-fin-pallanuoto-v2-';
-const CACHE_NAME = `${CACHE_PREFIX}4`;
+const CACHE_NAME = `${CACHE_PREFIX}5`;
 const CORE_ASSETS = [
   './', './index.html', './app.js', './verbale-fin.js', './db.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/icon.svg',
