@@ -178,30 +178,120 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  caricaPreferenzaSoloAereo();
   verificaProntezzaOffline();
+  aggiornaBloccoModalitaAereo();
+  window.addEventListener('online', () => aggiornaBloccoModalitaAereo());
+  window.addEventListener('offline', () => aggiornaBloccoModalitaAereo());
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      verificaProntezzaOffline();
+    });
+  }
 });
 
 // ==========================================
-// 0. VERIFICA PRONTEZZA OFFLINE
+// 0. VERIFICA PRONTEZZA OFFLINE & BLOCCO MODALITÀ AEREO (OPZIONALE)
 // ==========================================
 const RISORSE_OFFLINE = [
   './index.html', './app.js', './db.js', './manifest.json',
   './lib/pdf-lib.min.js', './lib/fontkit.umd.min.js', './lib/NotoSans-Bold.ttf',
   './verbale-fin.js', './modello_verbale_fin_2021.pdf'
 ];
+const KEY_SOLO_AEREO = 'referto_fin_solo_modalita_aereo';
+
+let cacheOfflinePronta = false;
+let soloModalitaAereo = false;
+
+function caricaPreferenzaSoloAereo() {
+  try {
+    soloModalitaAereo = localStorage.getItem(KEY_SOLO_AEREO) === 'Y';
+  } catch (e) {
+    soloModalitaAereo = false;
+  }
+  const sel = document.getElementById('toggleAirplaneOnly');
+  if (sel) sel.value = soloModalitaAereo ? 'Y' : 'N';
+}
+
+function cambiaModalitaSoloAereo() {
+  const sel = document.getElementById('toggleAirplaneOnly');
+  soloModalitaAereo = sel ? sel.value === 'Y' : false;
+  try {
+    localStorage.setItem(KEY_SOLO_AEREO, soloModalitaAereo ? 'Y' : 'N');
+  } catch (e) {}
+  aggiornaBloccoModalitaAereo(true);
+}
+
+function disattivaBloccoModalitaAereo() {
+  soloModalitaAereo = false;
+  const sel = document.getElementById('toggleAirplaneOnly');
+  if (sel) sel.value = 'N';
+  try {
+    localStorage.setItem(KEY_SOLO_AEREO, 'N');
+  } catch (e) {}
+  aggiornaBloccoModalitaAereo(false);
+}
+
+function isOnlineBloccato() {
+  return soloModalitaAereo && navigator.onLine !== false;
+}
+
+function aggiornaStatoGateCache(testo, classe) {
+  const gateCache = document.getElementById('airplaneGateCacheStatus');
+  if (!gateCache) return;
+  gateCache.textContent = testo;
+  gateCache.className = classe || '';
+}
+
+function aggiornaBloccoModalitaAereo(forzaVerificaCache = false) {
+  const modal = document.getElementById('airplaneGateModal');
+  const msgEl = document.getElementById('airplaneGateMsg');
+  const statoEl = document.getElementById('statoOffline');
+  if (forzaVerificaCache) verificaProntezzaOffline();
+
+  if (isOnlineBloccato()) {
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+    if (msgEl) {
+      msgEl.innerHTML = cacheOfflinePronta
+        ? 'Connessione di rete rilevata. Hai attivato l’opzione <strong>Solo in Modalità Aereo</strong>: disattiva Wi-Fi e Dati Mobili per continuare, oppure disattiva il blocco qui sotto.'
+        : 'Connessione di rete rilevata. Attendi il completamento della cache offline qui sotto, poi attiva la <strong>Modalità Aereo</strong> (oppure disattiva il blocco).';
+    }
+    if (modal) modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  } else {
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+    if (statoEl && cacheOfflinePronta) {
+      statoEl.className = 'ok';
+      statoEl.textContent = navigator.onLine === false
+        ? '✈️ Modalità Aereo attiva — Referto e PDF pronti offline.'
+        : '✅ Inserimento rapido e PDF pronti anche offline.';
+    }
+  }
+}
 
 async function verificaProntezzaOffline() {
   const el = document.getElementById('statoOffline');
-  if (!el) return;
-  const imposta = (testo, classe) => { el.textContent = testo; el.className = classe || ''; };
+  const imposta = (testo, classe) => {
+    if (el) {
+      el.textContent = testo;
+      el.className = classe || '';
+    }
+  };
 
   if (!window.isSecureContext || location.protocol === 'file:') {
+    cacheOfflinePronta = false;
     imposta('⚠️ Apri la v2 via HTTPS o localhost per usare l’app e stampare il verbale offline.', 'warn');
+    aggiornaStatoGateCache('⚠️ Apri l’app via HTTPS o localhost per abilitare la cache offline.', 'warn');
     return;
   }
 
   if (!('serviceWorker' in navigator) || !('caches' in window)) {
+    cacheOfflinePronta = false;
     imposta('⚠️ Questo browser non supporta il funzionamento offline. Usa Chrome per Android.', 'warn');
+    aggiornaStatoGateCache('⚠️ Browser senza supporto cache offline.', 'warn');
     return;
   }
   try {
@@ -212,12 +302,26 @@ async function verificaProntezzaOffline() {
     }
 
     if (mancanti.length === 0) {
-      imposta('✅ Inserimento rapido e PDF pronti anche offline.', 'ok');
+      cacheOfflinePronta = true;
+      imposta(
+        isOnlineBloccato()
+          ? '✅ File salvati offline. Attiva la Modalità Aereo per iniziare.'
+          : (navigator.onLine === false
+              ? '✈️ Modalità Aereo attiva — Referto e PDF pronti offline.'
+              : '✅ Inserimento rapido e PDF pronti anche offline.'),
+        'ok'
+      );
+      aggiornaStatoGateCache('✅ Cache offline pronta: ora puoi attivare la Modalità Aereo.', 'ok');
     } else {
+      cacheOfflinePronta = false;
       imposta(`⚠️ App non ancora pronta offline. Mancano in cache: ${mancanti.join(', ')}. Apri l'app con rete attiva e verifica che i file siano nella cartella.`, 'warn');
+      aggiornaStatoGateCache(`⏳ Mancano in cache: ${mancanti.join(', ')}. Attendi o ricarica con rete attiva.`, 'warn');
     }
+    aggiornaBloccoModalitaAereo(false);
   } catch (e) {
+    cacheOfflinePronta = false;
     imposta('⚠️ Impossibile verificare la cache offline.', 'warn');
+    aggiornaStatoGateCache('⚠️ Impossibile verificare la cache offline.', 'warn');
   }
 }
 
@@ -823,20 +927,46 @@ function nuovoIdEvento() {
   return statoGara.eventi.reduce((max, ev) => Math.max(max, ev.id || 0), 0) + 1;
 }
 
-function calcolaChiave3FalloGiocatore(eventi, squadra, calotta) {
+function isSiglaFalloPersonale(sigla) {
+  return sigla === 'ET' || sigla === 'TR' || sigla === 'EDA' || sigla === 'EDS' || sigla === 'ED';
+}
+
+function calcolaInfo3FalloGiocatore(eventi, squadra, calotta) {
   const targetNum = parseInt(calotta, 10);
   if (!Number.isFinite(targetNum)) return null;
   let falli = 0;
   for (const ev of eventi) {
     if (ev.squadra !== squadra || parseInt(ev.calotta, 10) !== targetNum) continue;
-    const isFallo = (ev.sigla === 'ET' || ev.sigla === 'TR' || ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED');
-    if (!isFallo) continue;
+    if (!isSiglaFalloPersonale(ev.sigla)) continue;
     falli += 1;
     if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || falli >= 3) {
-      return chiaveCronologica(ev);
+      return { chiave: chiaveCronologica(ev), id: ev.id || 0 };
     }
   }
   return null;
+}
+
+function eDopoEspulsioneDefinitiva(evento, infoEspulsione) {
+  if (!infoEspulsione) return false;
+  const chiaveEv = chiaveCronologica(evento);
+  if (chiaveEv > infoEspulsione.chiave) return true;
+  if (chiaveEv < infoEspulsione.chiave) return false;
+  if (isSiglaFalloPersonale(evento.sigla)) return true;
+  return (evento.id || 0) >= (infoEspulsione.id || 0);
+}
+
+function trovaIndiceUltimoEventoInserito() {
+  if (statoGara.eventi.length === 0) return -1;
+  let bestIdx = 0;
+  let bestId = statoGara.eventi[0].id || 0;
+  for (let i = 1; i < statoGara.eventi.length; i += 1) {
+    const curId = statoGara.eventi[i].id || 0;
+    if (curId >= bestId) {
+      bestId = curId;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
 }
 
 function ricalcolaStatoDaEventi() {
@@ -874,7 +1004,7 @@ function ricalcolaStatoDaEventi() {
         // Espulsione definitiva immediata (EDA/EDS) o per raggiungimento del 3° fallo
         if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || giocatore.falli.length >= 3) {
           if (giocatore.chiave3Fallo == null) {
-            giocatore.chiave3Fallo = chiaveCronologica(ev);
+            giocatore.chiave3Fallo = { chiave: chiaveCronologica(ev), id: ev.id || 0 };
           }
         }
       }
@@ -886,6 +1016,10 @@ function ricalcolaStatoDaEventi() {
 // REGISTRAZIONE EVENTI CENTRALIZZATA
 // ==========================================
 async function registraEventoStrutturato(datiEvento) {
+  if (isOnlineBloccato()) {
+    aggiornaBloccoModalitaAereo();
+    return false;
+  }
   const { tempo, minuto, squadra, calotta, sigla } = datiEvento;
   const roster = squadra === 'B' ? statoGara.rosterB : statoGara.rosterN;
   const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
@@ -901,7 +1035,7 @@ async function registraEventoStrutturato(datiEvento) {
   };
 
   const giocatore = nuovoEvento.calotta !== 'X' ? roster.find(p => p.num === nuovoEvento.calotta) : null;
-  if (giocatore && giocatore.chiave3Fallo != null && chiaveCronologica(nuovoEvento) >= giocatore.chiave3Fallo) {
+  if (giocatore && eDopoEspulsioneDefinitiva(nuovoEvento, giocatore.chiave3Fallo)) {
     mostraAlertEspulsione(`Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) è GIÀ ESPULSO DEFINITIVAMENTE!`);
     return false;
   }
@@ -1032,8 +1166,13 @@ async function registraTimeOutRapido(squadra) {
 // UNDO RAPIDO ULTIMO EVENTO
 // ==========================================
 async function annullaUltimoEvento() {
-  if (statoGara.eventi.length === 0) return;
-  const rimosso = statoGara.eventi.pop();
+  if (isOnlineBloccato()) {
+    aggiornaBloccoModalitaAereo();
+    return;
+  }
+  const idx = trovaIndiceUltimoEventoInserito();
+  if (idx < 0) return;
+  const [rimosso] = statoGara.eventi.splice(idx, 1);
   ricalcolaStatoDaEventi();
   aggiornaUI();
   await salvaStatoGara(statoGara);
@@ -1046,6 +1185,10 @@ async function annullaUltimoEvento() {
 }
 
 async function processaComando() {
+  if (isOnlineBloccato()) {
+    aggiornaBloccoModalitaAereo();
+    return;
+  }
   const inputEl = document.getElementById('comandoInput');
   const feedbackEl = document.getElementById('feedbackQuery');
   const testo = inputEl.value;
@@ -1177,8 +1320,8 @@ async function salvaModificaEvento() {
     const altriEventi = statoGara.eventi
       .filter((_, i) => i !== idx)
       .sort((a, b) => (chiaveCronologica(a) - chiaveCronologica(b)) || ((a.id || 0) - (b.id || 0)));
-    const chiaveEspulsioneAltro = calcolaChiave3FalloGiocatore(altriEventi, squadra, calotta);
-    if (chiaveEspulsioneAltro != null && chiaveCronologica(eventoModificato) >= chiaveEspulsioneAltro) {
+    const infoEspulsioneAltro = calcolaInfo3FalloGiocatore(altriEventi, squadra, calotta);
+    if (eDopoEspulsioneDefinitiva(eventoModificato, infoEspulsioneAltro)) {
       mostraErroreEdit(`Calottina ${squadra} #${calotta} è già espulsa definitivamente prima o in questo istante.`);
       return;
     }
@@ -1304,6 +1447,14 @@ function importaRosterDaTesto() {
   const raw = document.getElementById('bulkRosterText').value.trim();
   if (!raw) return;
 
+  // Pulisce eventuali nominativi/tessere residui dalle calotte 1-15 prima di applicare il nuovo elenco
+  for (let n = 1; n <= 15; n += 1) {
+    const inpNome = document.getElementById(`r_nome_${n}`);
+    const inpTess = document.getElementById(`r_tess_${n}`);
+    if (inpNome) inpNome.value = '';
+    if (inpTess) inpTess.value = '';
+  }
+
   const righe = raw.split(/\r?\n/).filter(r => r.trim() !== '');
   righe.forEach((riga, idx) => {
     let numCalotta = idx + 1;
@@ -1418,12 +1569,13 @@ function aggiornaUI() {
   renderRoster(statoGara.rosterB, 'rosterB', 'B');
   renderRoster(statoGara.rosterN, 'rosterN', 'N');
 
-  // Aggiorna pulsante Undo rapido
+  // Aggiorna pulsante Undo rapido (ultimo evento effettivamente inserito per id)
   const btnUndo = document.getElementById('btnUndo');
   const lblUndo = document.getElementById('lblUndoEvento');
   if (btnUndo && lblUndo) {
-    if (statoGara.eventi.length > 0) {
-      const u = statoGara.eventi[statoGara.eventi.length - 1];
+    const lastIdx = trovaIndiceUltimoEventoInserito();
+    if (lastIdx >= 0) {
+      const u = statoGara.eventi[lastIdx];
       lblUndo.textContent = `[${u.tempo.slice(0, 2)}] ${u.minuto} ${u.squadra} #${u.calotta} ${u.sigla}`;
       btnUndo.style.display = 'block';
     } else {
@@ -1622,6 +1774,10 @@ function stampaViaIframe(blobUrl) {
 }
 
 async function esportaEStampaPDF(stampaSubito = false) {
+  if (isOnlineBloccato()) {
+    aggiornaBloccoModalitaAereo();
+    return;
+  }
   if (esportazioneInCorso) return;
   esportazioneInCorso = true;
   mostraFeedbackExport('Preparazione verbale FIN…');
@@ -1916,5 +2072,7 @@ async function importaBackupArchivioDaFile(inputEl) {
     location.reload();
   } catch (e) {
     alert('Errore nel ripristino del backup: file non valido.');
+  } finally {
+    inputEl.value = '';
   }
 }
