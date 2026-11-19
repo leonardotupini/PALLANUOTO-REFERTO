@@ -15,12 +15,14 @@
     .card { background: var(--card); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
     h2, h3 { margin: 0 0 8px 0; font-size: 0.95rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
     .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
     .dati-verbale { margin: 0 0 8px; padding: 8px; border: 1px solid #334155; border-radius: 8px; }
     .dati-verbale legend, .campo-verbale, .rigori-verbale label { color: #cbd5e1; font-size: 0.82rem; }
-    .campo-verbale input { margin-top: 4px; }
-    .rigori-verbale summary { cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+    .campo-verbale input, .campo-verbale select { margin-top: 4px; }
+    .rigori-verbale summary, .sub-details summary { cursor: pointer; font-size: 0.88rem; font-weight: 600; color: #e2e8f0; }
     .rigori-verbale textarea { display: block; margin-top: 6px; }
     .rigori-verbale p { margin: 8px 0; color: #cbd5e1; font-size: 0.82rem; }
+    .sub-details { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
     input, select, button, textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 0.95rem; }
     textarea { resize: vertical; font-size: 0.85rem; }
     button { background: var(--accent); border: none; font-weight: bold; cursor: pointer; }
@@ -28,10 +30,14 @@
     button.success { background: var(--ok); }
     .btn-mini { padding: 5px 8px; font-size: 0.75rem; border-radius: 5px; width: auto; }
 
-    /* Stato offline */
-    #statoOffline { font-size: 0.75rem; padding: 6px 10px; border-radius: 8px; margin-bottom: 10px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+    /* Stato offline & Utility top */
+    #statoOffline { font-size: 0.75rem; padding: 6px 10px; border-radius: 8px; margin-bottom: 8px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
     #statoOffline.ok { color: #86efac; border-color: #166534; }
     #statoOffline.warn { color: #fde68a; border-color: #a16207; background: #422006; }
+    .rules-banner { background: #0c4a6e44; border: 1px solid #0284c7; border-radius: 8px; padding: 7px 10px; margin-bottom: 8px; font-size: 0.78rem; color: #bae6fd; line-height: 1.35; }
+    .eda-banner { background: #450a0a; border: 1px solid #ef4444; border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 0.8rem; color: #fecaca; }
+    .eda-banner-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px dashed #7f1d1d; }
+    .eda-banner-row:last-child { border-bottom: none; }
 
     /* Scoreboard & Timer */
     .scoreboard { display: flex; justify-content: space-around; align-items: center; text-align: center; padding: 8px 0; }
@@ -50,22 +56,42 @@
     .manual-clock-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #0f172a; padding: 8px 10px; border-radius: 8px; margin-top: 8px; border: 1px solid #334155; }
     .manual-clock-bar input { width: 96px; padding: 6px 8px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 
+    /* Timer Ausiliari Giuria */
+    .aux-timer-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+    .aux-timer-grid button { padding: 7px 2px; font-size: 0.72rem; background: #1e293b; border: 1px solid #475569; color: #e2e8f0; }
+    .aux-timer-active { display: none; margin-top: 8px; background: #0c4a6e; border: 1px solid #38bdf8; border-radius: 8px; padding: 8px 10px; align-items: center; justify-content: space-between; gap: 8px; }
+    .aux-timer-active.warn45 { background: #713f12; border-color: #facc15; }
+    .aux-timer-active.ended { background: #7f1d1d; border-color: #ef4444; }
+    .aux-timer-val { font-size: 1.45rem; font-weight: 800; font-variant-numeric: tabular-nums; color: #f8fafc; }
+
     /* Microfono Web Speech */
     .btn-mic { background: #475569; font-size: 1rem; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .btn-mic.listening { background: #dc2626; animation: micPulse 1s infinite alternate; }
     @keyframes micPulse { from { opacity: 1; } to { opacity: 0.7; } }
 
     /* Roster Live & Log */
-    .player-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-bottom: 1px solid #334155; font-size: 0.85rem; cursor: pointer; border-radius: 6px; transition: background 0.15s; }
+    .player-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 6px; border-bottom: 1px solid #334155; font-size: 0.83rem; cursor: pointer; border-radius: 6px; transition: background 0.15s; gap: 4px; }
     .player-row:hover { background: #33415544; }
     .player-row.selected { background: #0369a166; border: 1px solid #38bdf8; }
-    .fouls { display: flex; gap: 4px; flex-shrink: 0; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; background: #334155; display: inline-block; }
+    .player-row.expelled-row { opacity: 0.65; }
+    .fouls { display: flex; gap: 3px; flex-shrink: 0; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: #334155; display: inline-block; }
+    .dot.sm { width: 9px; height: 9px; }
     .dot.active { background: #f59e0b; }
     .dot.out { background: var(--danger); }
     .log-box { max-height: 180px; overflow-y: auto; font-size: 0.85rem; }
     .log-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed #334155; gap: 6px; }
     .log-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    /* Checklist e badges NOG */
+    .checklist-row { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #cbd5e1; margin-bottom: 6px; cursor: pointer; }
+    .checklist-row input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; margin: 0; }
+    .quick-notes-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-top: 8px; }
+    .quick-notes-grid button { background: #1e293b; border: 1px solid #475569; color: #e2e8f0; padding: 7px 6px; font-size: 0.72rem; font-weight: 600; text-align: left; }
+    .status-pill { display: inline-block; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+    .status-pill.ok { background: #052e16; color: #86efac; border: 1px solid #166534; }
+    .status-pill.warn { background: #422006; color: #fde68a; border: 1px solid #a16207; }
+    .status-pill.err { background: #450a0a; color: #fecaca; border: 1px solid #dc2626; }
 
     /* Modals */
     #airplaneGateModal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.98); z-index: 10000; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 24px; }
@@ -79,11 +105,11 @@
 
     #alertModal { display: none; position: fixed; inset: 0; background: rgba(220, 38, 38, 0.96); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 24px; animation: pulse 0.8s infinite alternate; }
     @keyframes pulse { from { background: rgba(185, 28, 28, 0.96); } to { background: rgba(239, 68, 68, 0.98); } }
-    #alertModal h1 { font-size: 2rem; margin-bottom: 12px; }
-    #alertModal button { background: white; color: #dc2626; max-width: 240px; margin-top: 20px; font-size: 1.2rem; }
+    #alertModal h1 { font-size: 1.8rem; margin-bottom: 10px; }
+    #alertModal button { background: white; color: #dc2626; max-width: 240px; margin-top: 18px; font-size: 1.15rem; }
 
     #editModal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.92); z-index: 9998; justify-content: center; align-items: center; padding: 16px; }
-    #rosterModal, #archiveModal, #reviewModal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.96); z-index: 9997; overflow-y: auto; padding: 12px; }
+    #rosterModal, #archiveModal, #reviewModal, #rulesModal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.96); z-index: 9997; overflow-y: auto; padding: 12px; }
     .review-tempo-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
     .review-tempo-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 0.88rem; color: #38bdf8; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #334155; }
     .review-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px dashed #1e293b; font-size: 0.82rem; }
@@ -97,6 +123,13 @@
     .tab-btn.active { background: var(--accent); color: white; }
     .archive-item { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .archive-item.current { border-color: var(--accent); background: #0c4a6e33; }
+    .rules-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; margin-top: 6px; }
+    .rules-table th, .rules-table td { border: 1px solid #334155; padding: 4px 5px; text-align: left; }
+    .rules-table th { background: #1e293b; color: #38bdf8; }
+    .rules-section { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+    .rules-section h4 { margin: 0 0 6px 0; font-size: 0.85rem; color: #38bdf8; }
+    .rules-section ul { margin: 0; padding-left: 16px; font-size: 0.79rem; color: #e2e8f0; line-height: 1.45; }
+    .rules-section li { margin-bottom: 4px; }
   </style>
 </head>
 <body>
@@ -108,6 +141,16 @@
 
   <!-- Stato prontezza offline (verifica cache del Service Worker) -->
   <div id="statoOffline">Verifica disponibilità offline in corso...</div>
+
+  <!-- Barra Utilità Rapida Smartphone Offline -->
+  <div class="grid-2" style="margin-bottom:8px;">
+    <button type="button" class="btn-mini" style="background:#1e3a5f; border:1px solid #0284c7; color:#bae6fd; width:100%; padding:8px; font-size:0.78rem;" onclick="apriRegolamentoModal()">
+      📖 PRONTUARIO FIN 26/27
+    </button>
+    <button type="button" id="btnWakeLock" class="btn-mini" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; width:100%; padding:8px; font-size:0.78rem;" onclick="toggleWakeLock()">
+      🔆 SCHERMO ACCESO: OFF
+    </button>
+  </div>
 
   <!-- Opzione blocco Modalità Aereo -->
   <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:8px 10px; border-radius:8px; margin-bottom:10px; border:1px solid #334155;">
@@ -126,7 +169,8 @@
       <input type="text" id="sqNera" placeholder="Squadra Nera (es. Olympic Roma)" value="Olympic Roma">
     </div>
     <div class="grid-2" style="margin-bottom:8px;">
-      <input type="text" id="categoria" placeholder="Categoria (es. Ragazzi)" value="Ragazzi">
+      <input type="text" id="categoria" list="listaCategorieFIN" placeholder="Categoria (es. Ragazzi, Serie B...)" value="Ragazzi">
+      <datalist id="listaCategorieFIN"></datalist>
       <select id="tempoCorrente" onchange="cambiaTempoCorrente(this.value)">
         <option value="1° TEMPO">1° Quarto</option>
         <option value="2° TEMPO">2° Quarto</option>
@@ -134,6 +178,27 @@
         <option value="4° TEMPO">4° Quarto</option>
       </select>
     </div>
+
+    <!-- Profilo Regolamentare FIN 2026/27 rilevato dalla Categoria -->
+    <div id="infoCategoriaFIN" class="rules-banner">
+      📋 Ragazzi (NOG 26/27): 4×8' continuati • Max 3 falli • 28"/18" • 18" ET • 1 Aiuto Giuria
+    </div>
+    <div class="grid-2" style="margin-bottom:8px;">
+      <label class="campo-verbale">Durata tempo (NOG 16.1/16.6)
+        <select id="durataQuarto" onchange="cambiaDurataQuarto()" style="padding:7px 8px; font-size:0.82rem;">
+          <option value="480" selected>8:00 (Assoluti / Giov. / Ragazzi)</option>
+          <option value="420">7:00 (Esordienti)</option>
+          <option value="960">16:00 (Tempi fissi Art. 16.6)</option>
+        </select>
+      </label>
+      <label class="campo-verbale">Limite falli gravi (NOG 18)
+        <select id="limiteFalli" onchange="cambiaLimiteFalli()" style="padding:7px 8px; font-size:0.82rem;">
+          <option value="3" selected>3 falli (Standard)</option>
+          <option value="5">5 falli (Esordienti)</option>
+        </select>
+      </label>
+    </div>
+
     <fieldset class="dati-verbale">
       <legend>Dati per il verbale FIN</legend>
       <div class="grid-2" style="margin-bottom:8px;">
@@ -163,7 +228,7 @@
     </button>
   </div>
 
-  <!-- 2. Tabellone Live & Cronometro Opzionale -->
+  <!-- 2. Tabellone Live & Cronometri Giuria -->
   <div class="card">
     <div class="scoreboard">
       <div>
@@ -198,12 +263,15 @@
       </button>
     </div>
 
+    <!-- Banner EDA 4' attive (Art. 10.8 / 3.11.2.3.2 RTPN) -->
+    <div id="edaActiveBanner" class="eda-banner" style="display:none;"></div>
+
     <!-- Minuto Manuale in primo piano (quando cronometro integrato = NO) -->
     <div id="manualClockBar" class="manual-clock-bar">
       <label for="minutoTabellone" style="font-size:0.82rem; font-weight:600; color:#cbd5e1;">
         Minuto dal tabellone piscina:
       </label>
-      <input type="text" id="minutoTabellone" value="7:00" placeholder="es. 5:45"
+      <input type="text" id="minutoTabellone" value="8:00" placeholder="es. 5:45"
              oninput="sincronizzaMinutoInputs(this.value, this)"
              onblur="normalizzaCampiMinuto(this)">
     </div>
@@ -213,7 +281,7 @@
       <span style="font-size:0.85rem; font-weight:600; color:#cbd5e1;">Cronometro integrato?</span>
       <select id="toggleTimerMode" onchange="cambiaModalitaCronometro()" style="width:auto; padding:4px 10px; font-size:0.85rem; font-weight:bold;">
         <option value="N" selected>NO (Manuale)</option>
-        <option value="Y">SÌ (Attiva 7' / 8')</option>
+        <option value="Y">SÌ (Attiva 8' / 7' / 16')</option>
       </select>
     </div>
 
@@ -221,12 +289,9 @@
     <div id="timerBox" class="timer-box" style="display:none;">
       <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:#94a3b8;">
         <span>CRONOMETRO TEMPO</span>
-        <select id="durataQuarto" onchange="cambiaDurataQuarto()" style="width:auto; padding:3px 6px; font-size:0.75rem;">
-          <option value="420" selected>7:00 min (Ragazzi / U14)</option>
-          <option value="480">8:00 min (Allievi / Assoluti)</option>
-        </select>
+        <span id="lblDurataAttiva" style="color:#38bdf8; font-weight:bold;">8:00</span>
       </div>
-      <div id="timerDisplay" class="timer-display">7:00</div>
+      <div id="timerDisplay" class="timer-display">8:00</div>
       <div class="timer-controls">
         <button type="button" class="btn-mini" style="background:#334155; width:100%;" onclick="aggiustaSecondi(-1)">-1s</button>
         <button type="button" id="btnStartPause" class="success" onclick="toggleCronometro()">▶ AVVIA</button>
@@ -246,6 +311,25 @@
         </button>
       </div>
     </div>
+
+    <!-- Timer Ausiliari Giuria 2026/27 (18" ET, 1' TO con avviso 45", Intervalli 2'/5'/3') -->
+    <details class="sub-details" id="detailsAuxTimers">
+      <summary>⏱ Timer Ausiliari Giuria (18" ET • 1' TO • Intervalli)</summary>
+      <div class="aux-timer-grid">
+        <button type="button" id="btnAuxET" onclick="avviaTimerAusiliario('ET')">18" ET</button>
+        <button type="button" onclick="avviaTimerAusiliario('TO')">1' TO</button>
+        <button type="button" onclick="avviaTimerAusiliario('INT2')">2' Int.</button>
+        <button type="button" onclick="avviaTimerAusiliario('INT5')">5' A1</button>
+        <button type="button" onclick="avviaTimerAusiliario('RIG3')">3' Rig.</button>
+      </div>
+      <div id="auxTimerActive" class="aux-timer-active">
+        <div>
+          <div id="auxTimerLabel" style="font-size:0.75rem; color:#bae6fd; font-weight:700;">TIME-OUT (avviso a 45")</div>
+          <div id="auxTimerVal" class="aux-timer-val">1:00</div>
+        </div>
+        <button type="button" class="btn-mini danger" style="padding:8px 12px;" onclick="fermaTimerAusiliario()">■ STOP</button>
+      </div>
+    </details>
   </div>
 
   <!-- 3. Situazione Giocatori Live & Tastierino One-Tap -->
@@ -253,7 +337,7 @@
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
       <h3 style="margin:0;">2. Situazione Giocatori (Tocca per azione rapida)</h3>
     </div>
-    
+
     <div class="grid-2">
       <div>
         <strong style="font-size:0.8rem; color:#e2e8f0;">BIANCA (B)</strong>
@@ -275,7 +359,7 @@
         <span id="quickActionTempo" style="font-size:0.8rem; font-weight:700; color:#cbd5e1;">1° QUARTO</span>
         <div style="display:flex; align-items:center; gap:6px;">
           <label for="minutoQuickInput" style="font-size:0.78rem; color:#94a3b8;">Min:</label>
-          <input type="text" id="minutoQuickInput" value="7:00" placeholder="es. 5:45"
+          <input type="text" id="minutoQuickInput" value="8:00" placeholder="es. 5:45"
                  style="width:82px; padding:5px 6px; text-align:center; font-weight:700; font-size:0.9rem;"
                  oninput="sincronizzaMinutoInputs(this.value, this)"
                  onblur="normalizzaCampiMinuto(this)">
@@ -283,11 +367,24 @@
       </div>
       <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:6px;">
         <button type="button" class="btn-mini success" style="padding:10px 4px; font-size:0.8rem;" onclick="eseguiAzioneRapida('GOL')">⚽ GOL</button>
-        <button type="button" class="btn-mini" style="background:#eab308; color:#0f172a; padding:10px 4px; font-size:0.8rem; font-weight:bold;" onclick="eseguiAzioneRapida('ET')">20" ET</button>
+        <button type="button" id="btnQuickET" class="btn-mini" style="background:#eab308; color:#0f172a; padding:10px 4px; font-size:0.8rem; font-weight:bold;" onclick="eseguiAzioneRapida('ET')">18" ET</button>
         <button type="button" class="btn-mini" style="background:#f97316; padding:10px 4px; font-size:0.8rem;" onclick="eseguiAzioneRapida('TR')">TR Rigore</button>
         <button type="button" class="btn-mini danger" style="padding:10px 4px; font-size:0.75rem;" onclick="eseguiAzioneRapida('EDA')">EDA (4')</button>
         <button type="button" class="btn-mini danger" style="padding:10px 4px; font-size:0.75rem;" onclick="eseguiAzioneRapida('EDS')">EDS Def.</button>
       </div>
+      <div style="font-size:0.72rem; color:#94a3b8; margin-top:6px;">
+        ℹ️ ET, TR, EDA e EDS valgono come fallo personale (RTPN Art. 17.1). Al 3° fallo (5° Esordienti) con TR: sostituzione immediata.
+      </div>
+    </div>
+
+    <!-- Rigore contro Panchina / Allenatore senza fallo personale (Art. 11.1.5 / 11.1.6.3) -->
+    <div class="grid-2" style="margin-top:8px;">
+      <button type="button" class="btn-mini" style="background:#7c2d12; border:1px solid #ea580c; color:#fed7aa; width:100%; padding:7px; font-size:0.72rem;" onclick="registraRigorePanchina('B')">
+        ⚠️ TR PANCHINA B (no fallo pers.)
+      </button>
+      <button type="button" class="btn-mini" style="background:#7c2d12; border:1px solid #ea580c; color:#fed7aa; width:100%; padding:7px; font-size:0.72rem;" onclick="registraRigorePanchina('N')">
+        ⚠️ TR PANCHINA N (no fallo pers.)
+      </button>
     </div>
   </div>
 
@@ -304,10 +401,10 @@
       🎤 PREMI E PARLA (ES. "GOL DEL 12 OLYMPIC")
     </button>
     <div class="grid-2" style="grid-template-columns: 1fr 3fr; margin-bottom:8px;">
-      <input type="text" id="minutoInput" placeholder="Min (es. 5:45)" value="7:00"
+      <input type="text" id="minutoInput" placeholder="Min (es. 5:45)" value="8:00"
              oninput="sincronizzaMinutoInputs(this.value, this)"
              onblur="normalizzaCampiMinuto(this)">
-      <input type="text" id="comandoInput" placeholder='Es. "gol b4 5:20", "eda 7 nera"' onkeydown="if(event.key==='Enter') processaComando()">
+      <input type="text" id="comandoInput" placeholder='Es. "gol b4 5:20", "18s 7 nera", "rigore b3"' onkeydown="if(event.key==='Enter') processaComando()">
     </div>
     <button type="button" onclick="processaComando()">REGISTRA EVENTO / INTERROGA</button>
 
@@ -324,7 +421,7 @@
     <div class="log-box" id="logBox"></div>
   </div>
 
-  <!-- 6. Ufficiali di Gara & Note Arbitrali -->
+  <!-- 6. Ufficiali di Gara, Provvedimenti & Adempimenti NOG 26/27 -->
   <div class="card">
     <h3>5. Ufficiali di Gara & Note Arbitrali</h3>
     <div class="grid-2" style="margin-bottom:8px;">
@@ -336,64 +433,152 @@
       <input type="text" id="cronometrista" placeholder="Cronometrista">
     </div>
     <div class="grid-2" style="margin-bottom:8px;">
-      <label class="campo-verbale">30″<input type="text" id="cronometrista30" placeholder="Addetto ai 30 secondi"></label>
+      <label class="campo-verbale">28″/18″ (casella 30″ PDF)<input type="text" id="cronometrista30" placeholder="Addetto ai 28&quot;/18&quot;"></label>
       <label class="campo-verbale">Giudici di Porta<input type="text" id="giudiciPorta"></label>
+    </div>
+    <div style="margin-bottom:8px;">
+      <label class="campo-verbale" for="aiutoGiuria">
+        Aiuto Giuria (NOG Art. 4.1.1 — <span id="badgeAiutoGiuria" style="color:#38bdf8; font-weight:700;">previsti: 1</span>)
+        <input type="text" id="aiutoGiuria" placeholder="Nominativo/i e tessera FIN Aiuto Giuria (riportato in Note PDF)">
+      </label>
     </div>
 
     <div style="margin-bottom:8px;">
       <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:4px;">
-        PROVVEDIMENTI PANCHINA (appende alle Note con Tempo e Minuto)
+        PROVVEDIMENTI PANCHINA & SQUADRA (RTPN Art. 18 — appende alle Note con Tempo e Minuto)
       </label>
       <div class="grid-2" style="margin-bottom:6px;">
-        <button type="button" class="btn-mini" style="background:#eab308; color:#0f172a; padding:8px; width:100%;" onclick="registraCartellinoAllenatore('B', 'GIALLO')">
+        <button type="button" id="btnGialloAllB" class="btn-mini" style="background:#eab308; color:#0f172a; padding:8px; width:100%;" onclick="registraCartellinoPanchina('B', 'GIALLO', 'ALL')">
           🟨 GIALLO ALL. BIANCA
         </button>
-        <button type="button" class="btn-mini" style="background:#eab308; color:#0f172a; padding:8px; width:100%;" onclick="registraCartellinoAllenatore('N', 'GIALLO')">
+        <button type="button" id="btnGialloAllN" class="btn-mini" style="background:#eab308; color:#0f172a; padding:8px; width:100%;" onclick="registraCartellinoPanchina('N', 'GIALLO', 'ALL')">
           🟨 GIALLO ALL. NERA
         </button>
       </div>
-      <div class="grid-2">
-        <button type="button" class="btn-mini danger" style="padding:8px; width:100%;" onclick="registraCartellinoAllenatore('B', 'ROSSO')">
+      <div class="grid-2" style="margin-bottom:6px;">
+        <button type="button" class="btn-mini" style="background:#ca8a04; color:#0f172a; padding:7px; width:100%; font-size:0.73rem;" onclick="registraCartellinoPanchina('B', 'GIALLO', 'SQ')">
+          🟨 GIALLO SQUADRA B (Art. 18.2.4)
+        </button>
+        <button type="button" class="btn-mini" style="background:#ca8a04; color:#0f172a; padding:7px; width:100%; font-size:0.73rem;" onclick="registraCartellinoPanchina('N', 'GIALLO', 'SQ')">
+          🟨 GIALLO SQUADRA N (Art. 18.2.4)
+        </button>
+      </div>
+      <div class="grid-2" style="margin-bottom:6px;">
+        <button type="button" class="btn-mini danger" style="padding:8px; width:100%;" onclick="registraCartellinoPanchina('B', 'ROSSO', 'ALL')">
           🟥 ROSSO ALL. BIANCA
         </button>
-        <button type="button" class="btn-mini danger" style="padding:8px; width:100%;" onclick="registraCartellinoAllenatore('N', 'ROSSO')">
+        <button type="button" class="btn-mini danger" style="padding:8px; width:100%;" onclick="registraCartellinoPanchina('N', 'ROSSO', 'ALL')">
           🟥 ROSSO ALL. NERA
+        </button>
+      </div>
+      <div class="grid-2">
+        <button type="button" class="btn-mini danger" style="background:#991b1b; padding:7px; width:100%; font-size:0.73rem;" onclick="registraCartellinoPanchina('B', 'ROSSO', 'DIR')">
+          🟥 ROSSO DIRIG./STAFF B (Art. 18.3.4)
+        </button>
+        <button type="button" class="btn-mini danger" style="background:#991b1b; padding:7px; width:100%; font-size:0.73rem;" onclick="registraCartellinoPanchina('N', 'ROSSO', 'DIR')">
+          🟥 ROSSO DIRIG./STAFF N (Art. 18.3.4)
         </button>
       </div>
     </div>
 
+    <!-- Controlli Pre-Gara, VAR / Coach's Challenge & Annotazioni Rapide NOG/RTPN 26/27 -->
+    <details class="sub-details" style="margin-bottom:8px;">
+      <summary>📋 Controlli Pre-Gara, Coach's Challenge & Note Rapide FIN 26/27</summary>
+      <div style="margin-top:8px;">
+        <div class="grid-2" style="margin-bottom:6px;">
+          <label class="campo-verbale">Medico di servizio (Albo - NOG 10)
+            <input type="text" id="medicoServizio" placeholder="Dott. Cognome + n° Albo" style="padding:7px; font-size:0.82rem;">
+          </label>
+          <label class="campo-verbale">Tipo impianto (NOG 4.7)
+            <select id="tipoImpianto" style="padding:7px; font-size:0.82rem;">
+              <option value="coperto" selected>Coperto (25°–30°C)</option>
+              <option value="scoperto">Scoperto (26°–31°C)</option>
+            </select>
+          </label>
+        </div>
+        <div style="margin-bottom:8px;">
+          <label class="campo-verbale">Temperatura acqua °C (NOG Art. 4.7)
+            <input type="text" id="tempAcqua" inputmode="decimal" placeholder="Es. 27.0" style="padding:7px; font-size:0.82rem;">
+          </label>
+          <div id="tempAcquaStatus" style="font-size:0.75rem; margin-top:4px;"></div>
+        </div>
+
+        <div style="background:#1e293b; border-radius:6px; padding:8px; margin-bottom:8px;">
+          <div style="font-size:0.73rem; color:#94a3b8; font-weight:700; margin-bottom:5px;">CHECKLIST PRE-GARA (NOG 2026/27)</div>
+          <label class="checklist-row"><input type="checkbox" id="chkDae" onchange="salvaChecklistPreGara()"> DAE funzionante + operatore abilitato (NOG Art. 4.1)</label>
+          <label class="checklist-row"><input type="checkbox" id="chkMedico" onchange="salvaChecklistPreGara()"> Medico di servizio con tesserino Albo ≥20' prima (NOG Art. 10)</label>
+          <label class="checklist-row"><input type="checkbox" id="chkForzaPubblica" onchange="salvaChecklistPreGara()"> Copia richiesta Forza Pubblica ≥3 gg prima (NOG Art. 11)</label>
+          <label class="checklist-row"><input type="checkbox" id="chkCronometri" onchange="salvaChecklistPreGara()"> 3 cronometri supplementari al tavolo (NOG Art. 16.6)</label>
+        </div>
+
+        <div style="background:#1e293b; border-radius:6px; padding:8px; margin-bottom:8px;">
+          <div style="font-size:0.73rem; color:#38bdf8; font-weight:700; margin-bottom:5px;">COACH'S CHALLENGE / VAR (RTPN App. 6 — max 2 se 1ª accolta)</div>
+          <div class="grid-2" style="margin-bottom:6px; font-size:0.78rem;">
+            <div>Bianca: <strong id="lblChallengeB">Disponibile (0/2)</strong></div>
+            <div>Nera: <strong id="lblChallengeN">Disponibile (0/2)</strong></div>
+          </div>
+          <div class="grid-2">
+            <div style="display:flex; gap:4px;">
+              <button type="button" class="btn-mini success" style="flex:1;" onclick="registraChallenge('B', 'ACCOLTA')">B ✔ Accolta</button>
+              <button type="button" class="btn-mini danger" style="flex:1;" onclick="registraChallenge('B', 'RESPINTA')">B ✕ Resp.</button>
+            </div>
+            <div style="display:flex; gap:4px;">
+              <button type="button" class="btn-mini success" style="flex:1;" onclick="registraChallenge('N', 'ACCOLTA')">N ✔ Accolta</button>
+              <button type="button" class="btn-mini danger" style="flex:1;" onclick="registraChallenge('N', 'RESPINTA')">N ✕ Resp.</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:0.73rem; color:#94a3b8; font-weight:700;">ANNOTAZIONI RAPIDE A VERBALE (appendono alle Note):</div>
+        <div class="quick-notes-grid">
+          <button type="button" onclick="aggiungiNotaRapidaFIN('AIUTO_ASSENTE')">📝 Assenza 1 Aiuto Giuria (4.1.1)</button>
+          <button type="button" onclick="aggiungiNotaRapidaFIN('FP_ASSENTE')">📝 Mancata Forza Pubblica (11)</button>
+          <button type="button" onclick="aggiungiNotaRapidaFIN('CARENZA_28')">📝 Carenza 28"/18" o Tabell. (4.3)</button>
+          <button type="button" onclick="aggiungiNotaRapidaFIN('RECLAMO')">📝 Preavviso Reclamo €70 (24.1)</button>
+          <button type="button" onclick="aggiungiNotaRapidaFIN('RINUNCIA_TR')">📝 Rinuncia TR ult. min → 28" (16.9)</button>
+          <button type="button" onclick="aggiungiNotaRapidaFIN('CAMBIO_CALOTTA')">📝 Cambio calotta autorizzato (8)</button>
+        </div>
+      </div>
+    </details>
+
     <div>
-      <textarea id="noteArbitrali" rows="3" placeholder="Note disciplinari, ammonizioni/cartellini allenatori, osservazioni impianto..."></textarea>
+      <textarea id="noteArbitrali" rows="3" placeholder="Note disciplinari, cartellini allenatori/dirigenti/squadra, EDA/EDS (ex Art. 10.6/10.8), Aiuto Giuria, osservazioni impianto..."></textarea>
     </div>
   </div>
 
-  <!-- 7. Tiri di Rigore Guidati -->
+  <!-- 7. Tiri di Rigore Guidati (RTPN Appendice 4) -->
   <details class="card rigori-verbale">
-    <summary>Tiri di rigore dopo il quarto tempo</summary>
-    <p id="istruzioniRigori">Usa i pulsanti rapidi qui sotto oppure compila a mano nel riquadro testo.</p>
-    
+    <summary>Tiri di rigore dopo il quarto tempo (Appendice 4 RTPN)</summary>
+    <p id="istruzioniRigori">Pausa 3' prima della serie. I giocatori espulsi definitivamente (3°/5° fallo, EDA, EDS) sono esclusi automaticamente dalla scelta (App. 4 Art. 1.5.2.2).</p>
+
+    <button type="button" class="btn-mini" style="background:#1e3a5f; border:1px solid #0284c7; color:#bae6fd; width:100%; padding:8px; margin-bottom:8px;" onclick="avviaTimerAusiliario('RIG3')">
+      ⏱ AVVIA PAUSA 3:00 PRE-RIGORI (App. 4 Art. 1.2.1)
+    </button>
+
     <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155; margin-bottom:8px;">
       <div class="grid-2" style="margin-bottom:8px;">
         <div>
           <label style="font-size:0.75rem; color:#94a3b8;">Squadra tiratrice</label>
-          <select id="rigoreSquadra">
+          <select id="rigoreSquadra" onchange="aggiornaOpzioniCalottaRigori()">
             <option value="B">Bianca (B)</option>
             <option value="N">Nera (N)</option>
           </select>
         </div>
         <div>
-          <label style="font-size:0.75rem; color:#94a3b8;">Calotta (1-15)</label>
-          <input type="number" id="rigoreCalotta" min="1" max="15" value="1" style="padding:8px;">
+          <label style="font-size:0.75rem; color:#94a3b8;">Calotta ammessa (1-15)</label>
+          <select id="rigoreCalotta" style="padding:8px;"></select>
         </div>
       </div>
       <div class="grid-2" style="margin-bottom:8px;">
         <button type="button" class="success" style="padding:9px;" onclick="aggiungiTiroRigoreGuidato('GOL')">⚽ TIRO SEGNATO (GOL)</button>
         <button type="button" class="danger" style="padding:9px;" onclick="aggiungiTiroRigoreGuidato('ERR')">❌ TIRO SBAGLIATO (ERR)</button>
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
         <span id="anteprimaPunteggioRigori" style="font-size:0.85rem; color:#38bdf8; font-weight:bold;">Rigori: B 0 - N 0</span>
         <button type="button" class="btn-mini danger" onclick="annullaUltimoTiroRigore()">↩ Rimuovi ultimo tiro</button>
       </div>
+      <div id="statoSerieRigori" style="font-size:0.78rem; color:#86efac; margin-top:6px; font-weight:600;"></div>
+      <div id="avvisiRigori" style="display:none; font-size:0.76rem; color:#fde68a; background:#451a03; border:1px solid #d97706; border-radius:6px; padding:6px 8px; margin-top:6px;"></div>
     </div>
 
     <label for="tiriRigore" style="font-size:0.75rem; color:#94a3b8;">Serie registrata (modificabile anche a mano)</label>
@@ -424,11 +609,11 @@
     </button>
   </div>
 
-  <!-- MODAL 1: Alert Bloccante Espulsione Definitiva (3° Fallo o EDA/EDS) -->
+  <!-- MODAL 1: Alert Bloccante Espulsione Definitiva (3°/5° Fallo o EDA/EDS) -->
   <div id="alertModal">
-    <h1>ESPULSIONE DEFINITIVA!</h1>
-    <p id="alertText" style="font-size:1.3rem; font-weight:bold;"></p>
-    <p>Giocatore escluso definitivamente dal gioco. Alzare bandierina rossa!</p>
+    <h1 id="alertTitle">ESPULSIONE DEFINITIVA!</h1>
+    <p id="alertText" style="font-size:1.25rem; font-weight:bold; margin:4px 0;"></p>
+    <p id="alertDetail" style="font-size:0.95rem; max-width:440px; line-height:1.45; margin:6px 0;">Giocatore escluso definitivamente dal gioco. Alzare bandierina rossa!</p>
     <button type="button" onclick="chiudiAlert()">HO CAPITO (OK)</button>
   </div>
 
@@ -468,10 +653,10 @@
           <label style="font-size:0.8rem; color:#94a3b8;">Sigla FIN</label>
           <select id="editSigla">
             <option value="GOL">GOL</option>
-            <option value="ET">ET (Espulsione 20")</option>
-            <option value="TR">TR (Rigore)</option>
-            <option value="EDA">EDA (Espuls. Definitiva 4')</option>
-            <option value="EDS">EDS (Espuls. Definitiva sost.)</option>
+            <option value="ET">ET (Espulsione 18")</option>
+            <option value="TR">TR (Fallo da Rigore)</option>
+            <option value="EDA">EDA (Azione Violenta 4')</option>
+            <option value="EDS">EDS (Cattiva Condotta / Def.)</option>
             <option value="TO">TO (Time Out)</option>
           </select>
         </div>
@@ -497,6 +682,10 @@
         <button type="button" id="tabBtnN" class="tab-btn" onclick="cambiaTabRoster('N')">SQUADRA NERA</button>
       </div>
 
+      <div id="rosterInfoNOG" class="rules-banner" style="margin-bottom:10px;">
+        Min. 7 giocatori (con portiere #1). Campionati Assoluti: max 14 giocatori (portieri rossi #1 e #13 — NOG Art. 5.1 / 8).
+      </div>
+
       <div style="background:#0f172a; padding:10px; border-radius:8px; margin-bottom:12px; border:1px solid #334155;">
         <label style="font-size:0.8rem; color:#38bdf8; font-weight:bold; display:block; margin-bottom:4px;">
           INCOLLA ELENCO RAPIDO (1 riga per giocatore: "Nome Cognome - Tessera" oppure "4 Rossi Mario - Tessera")
@@ -509,7 +698,7 @@
 
       <div class="roster-table-row" style="font-size:0.75rem; color:#94a3b8; font-weight:bold;">
         <div>N°</div>
-        <div>Cognome e Nome (es. con "(Cap.)")</div>
+        <div>Cognome e Nome (es. "(Cap.)", "(P)")</div>
         <div>Tessera FIN</div>
       </div>
       <div id="rosterEditList"></div>
@@ -580,10 +769,27 @@
     </div>
   </div>
 
+  <!-- MODAL 7: Prontuario Regolamenti FIN 2026/2027 (100% Offline) -->
+  <div id="rulesModal">
+    <div class="modal-card" style="max-width: 600px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="margin:0;">📖 Prontuario FIN 2026/2027 (Offline)</h3>
+        <button type="button" class="btn-mini danger" onclick="chiudiRegolamentoModal()">CHIUDI</button>
+      </div>
+      <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px;">
+        Fonte: NOG Pallanuoto Rev.7 + Regolamento Tecnico Rev.6 (Delibera Pres. FIN n. 34 del 02/10/2026). Sempre consultabile senza rete.
+      </div>
+      <input type="text" id="rulesSearchInput" placeholder="🔎 Cerca regola (es. 18, rigore, EDA, temperatura, aiuto giuria, esordienti...)"
+             style="margin-bottom:10px; padding:8px; font-size:0.85rem;" oninput="renderRegolamentoModal()">
+      <div id="rulesModalBody"></div>
+    </div>
+  </div>
+
   <!-- Librerie locali (100% offline fin dal primo caricamento della cache) -->
   <script src="lib/pdf-lib.min.js"></script>
   <script src="lib/fontkit.umd.min.js"></script>
   <script src="db.js"></script>
+  <script src="regolamento-fin.js"></script>
   <script src="verbale-fin.js"></script>
   <script src="app.js"></script>
   <script>

@@ -107,7 +107,7 @@ function compilaSquadraVerbaleFIN(scrivi, nome, squadra, risultato, roster, even
       const gol = periodo.filter(evento => evento.sigla === 'GOL' && evento.squadra === squadra && Number(evento.calotta) === giocatore.num).length;
       if (gol) scrivi(gol, 152.2 + i * 15.9, 168.2 + i * 15.9, y);
     });
-    eventi.filter(evento => Number(evento.calotta) === giocatore.num && (evento.sigla === 'ET' || evento.sigla === 'EDA' || evento.sigla === 'EDS' || evento.sigla === 'ED'))
+    eventi.filter(evento => Number(evento.calotta) === giocatore.num && (evento.sigla === 'ET' || evento.sigla === 'TR' || evento.sigla === 'EDA' || evento.sigla === 'EDS' || evento.sigla === 'ED'))
       .forEach((evento, i) => {
         const tempo = `${evento.tempo[0]}T ${evento.minuto.replace(':', '.')}`;
         if (i >= 3) {
@@ -145,7 +145,20 @@ async function creaVerbaleFIN(gara, modello, incorporaFont) {
   
   const listaTempi = (typeof ORDINE_TEMPI !== 'undefined' && Array.isArray(ORDINE_TEMPI)) ? ORDINE_TEMPI : ORDINE_TEMPI_DEFAULT;
   const eventi = listaTempi.map(tempo => gara.eventi.filter(evento => evento.tempo === tempo));
-  const righeNote = dividiNoteVerbaleFIN(txt(gara.noteArbitrali), font, 414, 7.1);
+  const noteExtra = [];
+  const baseNote = String(gara.noteArbitrali || '').trim();
+  if (String(gara.aiutoGiuria || '').trim() && !baseNote.toLowerCase().includes('aiuto giuria')) {
+    noteExtra.push(`Aiuto Giuria: ${String(gara.aiutoGiuria).trim()}`);
+  }
+  if (String(gara.medicoServizio || '').trim() && !baseNote.toLowerCase().includes('medico')) {
+    noteExtra.push(`Medico di servizio: ${String(gara.medicoServizio).trim()}`);
+  }
+  if (String(gara.tempAcqua || '').trim() && !baseNote.toLowerCase().includes('temperatura')) {
+    const tipoImp = gara.tipoImpianto === 'scoperto' ? 'scoperto' : 'coperto';
+    noteExtra.push(`Temperatura acqua: ${String(gara.tempAcqua).trim()}°C (${tipoImp})`);
+  }
+  const testoNoteCompleto = [baseNote, ...noteExtra].filter(Boolean).join('\n');
+  const righeNote = dividiNoteVerbaleFIN(txt(testoNoteCompleto), font, 414, 7.1);
   const supplemento = [];
   const tiriPerPagina = CAMPI_EVENTO_FIN.length * RIGHE_RIGORI_FIN;
   const pagineVerbale = Math.max(1,

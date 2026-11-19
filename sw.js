@@ -1,7 +1,7 @@
 const CACHE_PREFIX = 'referto-fin-pallanuoto-v2-';
-const CACHE_NAME = `${CACHE_PREFIX}11`;
+const CACHE_NAME = `${CACHE_PREFIX}12`;
 const CORE_ASSETS = [
-  './', './index.html', './app.js', './verbale-fin.js', './db.js', './manifest.json',
+  './', './index.html', './app.js', './verbale-fin.js', './regolamento-fin.js', './db.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/icon.svg',
   './lib/pdf-lib.min.js', './lib/fontkit.umd.min.js', './lib/NotoSans-Bold.ttf',
   './modello_verbale_fin_2021.pdf'

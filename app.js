@@ -18,6 +18,10 @@ function creaNuovaStrutturaGara() {
     manifestazione: '',
     giudiciPorta: '',
     cronometrista30: '',
+    aiutoGiuria: '',
+    medicoServizio: '',
+    tempAcqua: '',
+    tipoImpianto: 'coperto',
     tiriRigore: '',
     sqBianca: 'Roma Nuoto',
     sqNera: 'Olympic Roma',
@@ -33,7 +37,11 @@ function creaNuovaStrutturaGara() {
     noteArbitrali: '',
     usaCronometro: false,
     tempoCorrente: '1° TEMPO',
-    durataQuarto: 420,
+    durataQuarto: 480,
+    limiteFalli: 3,
+    checklistPreGara: { dae: false, medico: false, forzaPubblica: false, cronometri: false },
+    cartellini: { allGialloB: false, allGialloN: false, allRossoB: false, allRossoN: false, sqGialloB: false, sqGialloN: false },
+    challenge: { B: { usate: 0, esaurita: false }, N: { usate: 0, esaurita: false } },
     versioneExport: 0,
     scoreB: 0,
     scoreN: 0,
@@ -56,10 +64,19 @@ const CAMPI_METADATI = [
   'allBianca', 'allNera', 'compilatore', 'arbitro1', 'arbitro2',
   'segretario', 'cronometrista', 'noteArbitrali',
   'numeroGara', 'dataGara', 'oraInizio', 'oraTermine', 'manifestazione',
-  'giudiciPorta', 'cronometrista30', 'tiriRigore'
+  'giudiciPorta', 'cronometrista30', 'aiutoGiuria', 'medicoServizio',
+  'tempAcqua', 'tipoImpianto', 'tiriRigore'
 ];
 
 const ORDINE_TEMPI = ['1° TEMPO', '2° TEMPO', '3° TEMPO', '4° TEMPO'];
+
+function getLimiteFalli() {
+  return statoGara.limiteFalli === 5 ? 5 : 3;
+}
+
+function getDurataEspulsioneSec() {
+  return statoGara.durataQuarto === 960 ? 36 : 18;
+}
 
 function escapeHtml(s) {
   return String(s || '')
@@ -117,6 +134,77 @@ async function installaPwa() {
 }
 
 // ==========================================
+// WAKE LOCK (SCHERMO SEMPRE ACCESO OFFLINE)
+// ==========================================
+let wakeLockSentinel = null;
+let wakeLockRichiesto = false;
+
+function aggiornaBtnWakeLock() {
+  const btn = document.getElementById('btnWakeLock');
+  if (!btn) return;
+  if (!('wakeLock' in navigator)) {
+    btn.textContent = '🔆 SCHERMO ACCESO: N/D';
+    btn.style.opacity = '0.6';
+    return;
+  }
+  if (wakeLockRichiesto && wakeLockSentinel) {
+    btn.textContent = '🔆 SCHERMO ACCESO: ON';
+    btn.style.background = '#14532d';
+    btn.style.borderColor = '#22c55e';
+    btn.style.color = '#dcfce7';
+  } else {
+    btn.textContent = '🔆 SCHERMO ACCESO: OFF';
+    btn.style.background = '#1e293b';
+    btn.style.borderColor = '#475569';
+    btn.style.color = '#cbd5e1';
+  }
+}
+
+async function attivaWakeLockInterno() {
+  if (!('wakeLock' in navigator)) return false;
+  try {
+    wakeLockSentinel = await navigator.wakeLock.request('screen');
+    wakeLockSentinel.addEventListener('release', () => {
+      wakeLockSentinel = null;
+      aggiornaBtnWakeLock();
+    });
+    aggiornaBtnWakeLock();
+    return true;
+  } catch (e) {
+    wakeLockSentinel = null;
+    aggiornaBtnWakeLock();
+    return false;
+  }
+}
+
+async function toggleWakeLock() {
+  if (!('wakeLock' in navigator)) {
+    const fb = document.getElementById('feedbackQuery');
+    if (fb) fb.textContent = 'Wake Lock non supportato da questo browser.';
+    return;
+  }
+  if (wakeLockRichiesto) {
+    wakeLockRichiesto = false;
+    if (wakeLockSentinel) {
+      try { await wakeLockSentinel.release(); } catch (e) {}
+      wakeLockSentinel = null;
+    }
+    aggiornaBtnWakeLock();
+  } else {
+    wakeLockRichiesto = true;
+    const ok = await attivaWakeLockInterno();
+    if (!ok) wakeLockRichiesto = false;
+    aggiornaBtnWakeLock();
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && wakeLockRichiesto && !wakeLockSentinel) {
+    attivaWakeLockInterno();
+  }
+});
+
+// ==========================================
 // INIZIALIZZAZIONE
 // ==========================================
 window.addEventListener('DOMContentLoaded', async () => {
@@ -124,9 +212,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     navigator.storage.persist().catch(() => {});
   }
 
+  // Popola datalist categorie FIN 2026/27
+  const datalistCat = document.getElementById('listaCategorieFIN');
+  if (datalistCat && typeof CATEGORIE_FIN_26_27 !== 'undefined') {
+    datalistCat.innerHTML = CATEGORIE_FIN_26_27.map(c => `<option value="${escapeHtml(c.nome)}"></option>`).join('');
+  }
+
   const salvata = await caricaStatoGara();
   if (salvata) {
-    statoGara = { ...statoGara, ...salvata };
+    const base = creaNuovaStrutturaGara();
+    statoGara = {
+      ...base,
+      ...salvata,
+      checklistPreGara: { ...base.checklistPreGara, ...(salvata.checklistPreGara || {}) },
+      cartellini: { ...base.cartellini, ...(salvata.cartellini || {}) },
+      challenge: {
+        B: { ...base.challenge.B, ...(salvata.challenge?.B || {}) },
+        N: { ...base.challenge.N, ...(salvata.challenge?.N || {}) }
+      }
+    };
     if (salvata.dataGara === undefined) {
       const dataArchivio = new Date(salvata.dataOraInizio);
       statoGara.dataGara = Number.isNaN(dataArchivio.getTime()) ? '' : dataLocaleGara(dataArchivio);
@@ -143,11 +247,26 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   if (!ORDINE_TEMPI.includes(statoGara.tempoCorrente)) statoGara.tempoCorrente = '1° TEMPO';
-  statoGara.durataQuarto = (statoGara.durataQuarto === 480) ? 480 : 420;
+  if (![420, 480, 960].includes(Number(statoGara.durataQuarto))) {
+    statoGara.durataQuarto = 480;
+  } else {
+    statoGara.durataQuarto = Number(statoGara.durataQuarto);
+  }
+  if (statoGara.limiteFalli !== 5 && statoGara.limiteFalli !== 3) {
+    const profInit = typeof trovaProfiloCategoriaFIN === 'function' ? trovaProfiloCategoriaFIN(statoGara.categoria) : null;
+    statoGara.limiteFalli = profInit ? profInit.limiteFalli : 3;
+  }
   secondiRimanenti = statoGara.durataQuarto;
 
   const durataEl = document.getElementById('durataQuarto');
   if (durataEl) durataEl.value = String(statoGara.durataQuarto);
+  const limiteEl = document.getElementById('limiteFalli');
+  if (limiteEl) limiteEl.value = String(statoGara.limiteFalli);
+
+  aggiornaChecklistUI();
+  aggiornaChallengeUI();
+  aggiornaStatoTemperatura();
+  aggiornaInfoCategoriaUI();
   aggiornaQuarterUI();
   sincronizzaMinutoInputs(formattaTempo(statoGara.durataQuarto));
 
@@ -163,11 +282,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   ricalcolaStatoDaEventi();
   aggiornaUI();
   aggiornaPunteggioRigoriAnteprima();
+  aggiornaBtnWakeLock();
 
   CAMPI_METADATI.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.addEventListener('input', async () => {
+    const evtName = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(evtName, async () => {
       let val = el.value;
       if (id === 'sqBianca') val = val.trim() || 'Bianca';
       if (id === 'sqNera') val = val.trim() || 'Nera';
@@ -175,6 +296,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       statoGara[id] = val;
       if (id === 'sqBianca' || id === 'sqNera') aggiornaUI();
       if (id === 'tiriRigore') aggiornaPunteggioRigoriAnteprima();
+      if (id === 'tempAcqua' || id === 'tipoImpianto') aggiornaStatoTemperatura();
+      if (id === 'categoria') applicaProfiloCategoriaSeRiconosciuta(val);
       await salvaStatoGara(statoGara);
     });
   });
@@ -197,7 +320,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 const RISORSE_OFFLINE = [
   './index.html', './app.js', './db.js', './manifest.json',
   './lib/pdf-lib.min.js', './lib/fontkit.umd.min.js', './lib/NotoSans-Bold.ttf',
-  './verbale-fin.js', './modello_verbale_fin_2021.pdf'
+  './regolamento-fin.js', './verbale-fin.js', './modello_verbale_fin_2021.pdf'
 ];
 const KEY_SOLO_AEREO = 'referto_fin_solo_modalita_aereo';
 
@@ -329,7 +452,7 @@ async function verificaProntezzaOffline() {
 // ==========================================
 // 1. CRONOMETRO CON TIMESTAMP (NO DRIFT)
 // ==========================================
-let secondiRimanenti = 420;
+let secondiRimanenti = 480;
 let targetEndTimestamp = null;
 let timerInterval = null;
 let cronometroAttivo = false;
@@ -378,17 +501,189 @@ async function cambiaTempoCorrente(nuovoTempo) {
   if (statoGara.usaCronometro) {
     resetCronometro();
   } else {
-    sincronizzaMinutoInputs(formattaTempo(statoGara.durataQuarto || 420));
+    sincronizzaMinutoInputs(formattaTempo(statoGara.durataQuarto || 480));
   }
   await salvaStatoGara(statoGara);
 }
 
+function aggiornaEtichetteDurataET() {
+  const dur = statoGara.durataQuarto || 480;
+  const secET = getDurataEspulsioneSec();
+  const lblDur = document.getElementById('lblDurataAttiva');
+  if (lblDur) lblDur.textContent = formattaTempo(dur) + (dur === 960 ? ' (Fissi 16\')' : '');
+  const btnQuickET = document.getElementById('btnQuickET');
+  if (btnQuickET) btnQuickET.textContent = `${secET}" ET`;
+  const btnAuxET = document.getElementById('btnAuxET');
+  if (btnAuxET) btnAuxET.textContent = `${secET}" ET`;
+}
+
+function aggiornaInfoCategoriaUI() {
+  const infoEl = document.getElementById('infoCategoriaFIN');
+  const badgeAg = document.getElementById('badgeAiutoGiuria');
+  const rosterInfo = document.getElementById('rosterInfoNOG');
+  const prof = typeof trovaProfiloCategoriaFIN === 'function' ? trovaProfiloCategoriaFIN(statoGara.categoria) : null;
+  const durFmt = formattaTempo(statoGara.durataQuarto || 480);
+  const lim = getLimiteFalli();
+  const secET = getDurataEspulsioneSec();
+
+  if (prof) {
+    const modoTempo = statoGara.durataQuarto === 960 ? 'fissi (Art. 16.6)' : (prof.tempoEffettivo ? 'effettivi' : 'continuati');
+    const agTxt = prof.aiutoGiuria > 0 ? `${prof.aiutoGiuria} Aiuto Giuria (NOG 4.1.1)` : 'Nessun Aiuto Giuria obblig.';
+    if (infoEl) {
+      infoEl.textContent = `📋 ${prof.nome} (NOG 26/27): 4×${durFmt} ${modoTempo} • Max ${lim} falli • ${prof.possesso} • ${secET}" ET • ${agTxt}`;
+    }
+    if (badgeAg) {
+      badgeAg.textContent = prof.aiutoGiuria > 0 ? `previsti: ${prof.aiutoGiuria}` : 'non richiesto';
+    }
+    if (rosterInfo) {
+      rosterInfo.textContent = prof.gruppo === 'Assoluti'
+        ? `Min. 7 giocatori (con portiere #1). ${prof.nome}: max ${prof.maxGiocatori} giocatori (portieri rossi #1 e #13 — NOG Art. 5.1 / 8).`
+        : `Min. 7 giocatori (con portiere #1). ${prof.nome}: fino a ${prof.maxGiocatori} calotte (portieri rossi #1 e #13 — NOG Art. 5.1 / 8).`;
+    }
+  } else {
+    if (infoEl) {
+      infoEl.textContent = `📋 ${statoGara.categoria || 'Categoria personalizzata'} (FIN 26/27): 4×${durFmt} • Max ${lim} falli • 28"/18" • ${secET}" ET`;
+    }
+    if (badgeAg) badgeAg.textContent = 'verificare NOG 4.1.1';
+  }
+  aggiornaEtichetteDurataET();
+}
+
+function applicaProfiloCategoriaSeRiconosciuta(nomeCat) {
+  const prof = typeof trovaProfiloCategoriaFIN === 'function' ? trovaProfiloCategoriaFIN(nomeCat) : null;
+  if (prof) {
+    const durataEl = document.getElementById('durataQuarto');
+    const limiteEl = document.getElementById('limiteFalli');
+    // Aggiorna automaticamente durata solo se non è in modalità tempi fissi 16' e non ci sono ancora eventi
+    if (statoGara.durataQuarto !== 960 && statoGara.eventi.length === 0) {
+      statoGara.durataQuarto = prof.durataQuarto;
+      if (durataEl) durataEl.value = String(prof.durataQuarto);
+      secondiRimanenti = prof.durataQuarto;
+      if (statoGara.usaCronometro) resetCronometro();
+      else sincronizzaMinutoInputs(formattaTempo(prof.durataQuarto));
+    }
+    statoGara.limiteFalli = prof.limiteFalli;
+    if (limiteEl) limiteEl.value = String(prof.limiteFalli);
+    ricalcolaStatoDaEventi();
+    aggiornaUI();
+  }
+  aggiornaInfoCategoriaUI();
+}
+
 async function cambiaDurataQuarto() {
   const durataEl = document.getElementById('durataQuarto');
-  const durata = parseInt(durataEl?.value, 10) === 480 ? 480 : 420;
+  const val = parseInt(durataEl?.value, 10);
+  const durata = [420, 480, 960].includes(val) ? val : 480;
   statoGara.durataQuarto = durata;
-  resetCronometro();
+  if (statoGara.usaCronometro) {
+    resetCronometro();
+  } else {
+    secondiRimanenti = durata;
+    sincronizzaMinutoInputs(formattaTempo(durata));
+  }
+  aggiornaInfoCategoriaUI();
+  aggiornaUI();
   await salvaStatoGara(statoGara);
+}
+
+async function cambiaLimiteFalli() {
+  const el = document.getElementById('limiteFalli');
+  statoGara.limiteFalli = parseInt(el?.value, 10) === 5 ? 5 : 3;
+  ricalcolaStatoDaEventi();
+  aggiornaInfoCategoriaUI();
+  aggiornaUI();
+  aggiornaPunteggioRigoriAnteprima();
+  await salvaStatoGara(statoGara);
+}
+
+// ==========================================
+// 1B. TIMER AUSILIARI GIURIA (18" ET, 1' TO 45"+60", INTERVALLI)
+// ==========================================
+let auxTimerInterval = null;
+let auxTimerEnd = null;
+let auxTimerTipo = null;
+let auxTimer45Suonato = false;
+
+function suonaBipBreve(freq = 660, durataSec = 0.25) {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    osc.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + durataSec);
+  } catch (e) {}
+}
+
+function avviaTimerAusiliario(tipo) {
+  fermaTimerAusiliario();
+  const secET = getDurataEspulsioneSec();
+  const config = {
+    ET: { sec: secET, label: `ESPULSIONE TEMPORANEA (${secET}")` },
+    TO: { sec: 60, label: 'TIME-OUT 1:00 (avviso a 45" — RTPN 5.6)' },
+    INT2: { sec: 120, label: 'INTERVALLO TRA TEMPI (2:00 — NOG 16.2)' },
+    INT5: { sec: 300, label: 'INTERVALLO METÀ GARA A1 (5:00 — NOG 16.2)' },
+    RIG3: { sec: 180, label: 'PAUSA PRE-RIGORI (3:00 — App. 4 Art. 1.2.1)' }
+  }[tipo];
+  if (!config) return;
+
+  const details = document.getElementById('detailsAuxTimers');
+  if (details) details.open = true;
+
+  auxTimerTipo = tipo;
+  auxTimer45Suonato = false;
+  auxTimerEnd = Date.now() + config.sec * 1000;
+
+  const box = document.getElementById('auxTimerActive');
+  const lbl = document.getElementById('auxTimerLabel');
+  const val = document.getElementById('auxTimerVal');
+  if (!box || !lbl || !val) return;
+
+  box.className = 'aux-timer-active';
+  box.style.display = 'flex';
+  lbl.textContent = config.label;
+  val.textContent = formattaTempo(config.sec);
+
+  auxTimerInterval = setInterval(() => {
+    const restanti = Math.max(0, Math.ceil((auxTimerEnd - Date.now()) / 1000));
+    val.textContent = formattaTempo(restanti);
+
+    // RTPN Art. 5.6.1 / 3.10.5.1: segnale a 45" dall'inizio del Time-Out (= 15" rimasti)
+    if (auxTimerTipo === 'TO' && !auxTimer45Suonato && restanti <= 15 && restanti > 0) {
+      auxTimer45Suonato = true;
+      box.classList.add('warn45');
+      lbl.textContent = '🔔 45" TRASCORSI — Giocatori liberi di posizionarsi!';
+      vibraDispositivo([150, 80, 150]);
+      suonaBipBreve(780, 0.35);
+    }
+
+    if (restanti <= 0) {
+      clearInterval(auxTimerInterval);
+      auxTimerInterval = null;
+      box.classList.remove('warn45');
+      box.classList.add('ended');
+      lbl.textContent = `🔔 SCADUTO: ${config.label}`;
+      vibraDispositivo([250, 100, 250, 100, 400]);
+      suonaBipBreve(520, 0.7);
+    }
+  }, 200);
+}
+
+function fermaTimerAusiliario() {
+  if (auxTimerInterval) {
+    clearInterval(auxTimerInterval);
+    auxTimerInterval = null;
+  }
+  auxTimerEnd = null;
+  auxTimerTipo = null;
+  auxTimer45Suonato = false;
+  const box = document.getElementById('auxTimerActive');
+  if (box) {
+    box.style.display = 'none';
+    box.className = 'aux-timer-active';
+  }
 }
 
 function aggiornaDisplayCronometro() {
@@ -462,7 +757,7 @@ function resetCronometro() {
   clearInterval(timerInterval);
   timerInterval = null;
   cronometroAttivo = false;
-  const durata = parseInt(document.getElementById('durataQuarto')?.value, 10) || statoGara.durataQuarto || 420;
+  const durata = parseInt(document.getElementById('durataQuarto')?.value, 10) || statoGara.durataQuarto || 480;
   secondiRimanenti = durata;
   targetEndTimestamp = null;
 
@@ -478,7 +773,7 @@ function resetCronometro() {
 }
 
 function aggiustaSecondi(delta) {
-  const maxSec = parseInt(document.getElementById('durataQuarto')?.value, 10) || statoGara.durataQuarto || 420;
+  const maxSec = parseInt(document.getElementById('durataQuarto')?.value, 10) || statoGara.durataQuarto || 480;
   secondiRimanenti = Math.min(maxSec, Math.max(0, secondiRimanenti + delta));
   if (cronometroAttivo) {
     targetEndTimestamp = Date.now() + secondiRimanenti * 1000;
@@ -657,10 +952,11 @@ const RE_QUERY = reParola(
   'quant[ie]|situazione|com\'?\\s*è\\s+messo|come\\s+sta|falli\\s+ha|reti\\s+ha|gol\\s+ha|espulsioni\\s+ha|stato\\s+(?:del|della|di)'
 );
 const RE_GOL = reParola('gol|goal|gool|rete|segna\\p{L}*|marcatura');
-const RE_EDA = reParola('eda|brutalit[aà]|violenz\\p{L}*|condotta\\s+violent\\p{L}*');
-const RE_EDS = reParola('eds|scorrettezz\\p{L}*|protest\\p{L}*|antisportiv\\p{L}*');
-const RE_ET = reParola('espuls\\p{L}*|esclus\\p{L}*|fuori|20\\s+secondi|venti\\s+secondi|fallo\\s+grave|et');
+const RE_EDA = reParola('eda|azione\\s+violent\\p{L}*|brutalit[aà]|violenz\\p{L}*|condotta\\s+violent\\p{L}*');
+const RE_EDS = reParola('eds|cattiva\\s+condotta|misconduct|gioco\\s+aggressivo|scorrettezz\\p{L}*|protest\\p{L}*|antisportiv\\p{L}*');
+const RE_ET = reParola('espuls\\p{L}*|esclus\\p{L}*|fuori|18\\s*(?:secondi|sec)|diciotto\\s+secondi|20\\s*(?:secondi|sec)|venti\\s+secondi|36\\s*(?:secondi|sec)|fallo\\s+grave|et');
 const RE_TR = reParola('rigore|penalty|tr');
+const RE_PANCHINA = reParola('panchina|allenatore|tecnico|dirigente');
 const RE_TO = reParola('time[\\s-]?out|timeout|taim\\s?aut|t\\.?o\\.?|(?:chiest|chiede|richiest)\\p{L}*\\s+(?:un\\s+)?tempo|tempo\\s+(?:chiest|richiest)\\p{L}*');
 const RE_BIANCA = reParola('bianc[aoih]\\p{L}*|bianchi');
 const RE_NERA = reParola('ner[aoie]|blu|scur[aoie]');
@@ -746,7 +1042,7 @@ function italianoInNumero(token) {
 function estraiTempoDaSegmento(seg) {
   let tempo = null;
   const pulito = seg.replace(
-    /(?<![\p{L}\p{N}])(primo|prima|secondo|seconda|terzo|terza|quarto|quarta|[1-4]\s*[°'’]?)\s+tempo(?![\p{L}\p{N}])/iu,
+    /(?<![\p{L}\p{N}])(primo|prima|secondo|seconda|terzo|terza|quarto|quarta|[1-4]\s*[°'’]?)\s+(?:tempo|quarto)(?![\p{L}\p{N}])/iu,
     (_, g1) => {
       const key = g1.trim().toLowerCase();
       const num = ORDINALI_ITALIANI[key] || parseInt(key, 10);
@@ -767,7 +1063,7 @@ function estraiMinutoDaSegmento(seg) {
   const formattaMin = (mStr, sStr) => {
     const m = italianoInNumero(mStr);
     const s = sStr !== undefined ? italianoInNumero(sStr) : 0;
-    if (m === null || s === null || m < 0 || m > 15 || s < 0 || s > 59) return null;
+    if (m === null || s === null || m < 0 || m > 16 || s < 0 || s > 59 || (m === 16 && s > 0)) return null;
     return formattaTempo(m * 60 + s);
   };
 
@@ -821,7 +1117,7 @@ function estraiMinutoDaSegmento(seg) {
 }
 
 function estraiCampiSegmento(seg, distintive) {
-  const campi = { squadra: null, calotta: null, sigla: null, minuto: null, tempo: null, query: false, ambigua: false };
+  const campi = { squadra: null, calotta: null, sigla: null, minuto: null, tempo: null, query: false, ambigua: false, panchina: false };
 
   const { tempo, senzaTempo } = estraiTempoDaSegmento(seg);
   campi.tempo = tempo;
@@ -854,6 +1150,7 @@ function estraiCampiSegmento(seg, distintive) {
   }
 
   if (RE_QUERY.test(senzaMinuti)) campi.query = true;
+  if (RE_PANCHINA.test(senzaMinuti)) campi.panchina = true;
 
   if (RE_GOL.test(senzaMinuti)) campi.sigla = 'GOL';
   else if (RE_EDA.test(senzaMinuti)) campi.sigla = 'EDA';
@@ -870,7 +1167,7 @@ function parseComandoColloquiale(testo) {
   const distintive = paroleDistintiveSquadre();
   const segmenti = t.split(RE_CORREZIONE).map(s => s.trim()).filter(Boolean);
 
-  const ris = { squadra: null, calotta: null, sigla: null, minuto: null, tempo: null, query: false, ambigua: false };
+  const ris = { squadra: null, calotta: null, sigla: null, minuto: null, tempo: null, query: false, ambigua: false, panchina: false };
   segmenti.forEach(seg => {
     const c = estraiCampiSegmento(seg, distintive);
     if (c.squadra) { ris.squadra = c.squadra; ris.ambigua = false; }
@@ -880,12 +1177,13 @@ function parseComandoColloquiale(testo) {
     if (c.minuto) ris.minuto = c.minuto;
     if (c.tempo) ris.tempo = c.tempo;
     if (c.query) ris.query = true;
+    if (c.panchina) ris.panchina = true;
   });
 
   if (ris.query) {
     return { tipo: 'QUERY', squadra: ris.squadra, calotta: ris.calotta, ambigua: ris.ambigua };
   }
-  return { tipo: 'EVENTO', squadra: ris.squadra, calotta: ris.calotta, sigla: ris.sigla, minuto: ris.minuto, tempo: ris.tempo, ambigua: ris.ambigua };
+  return { tipo: 'EVENTO', squadra: ris.squadra, calotta: ris.calotta, sigla: ris.sigla, minuto: ris.minuto, tempo: ris.tempo, ambigua: ris.ambigua, panchina: ris.panchina };
 }
 
 // ==========================================
@@ -898,11 +1196,16 @@ function minutoInSecondi(minuto) {
     const sec = parseInt(s.slice(1), 10);
     return sec < 60 ? min * 60 + sec : -1;
   }
+  if (/^\d{4}$/.test(s)) {
+    const min = parseInt(s.slice(0, 2), 10);
+    const sec = parseInt(s.slice(2), 10);
+    return (min <= 16 && sec < 60 && (min < 16 || sec === 0)) ? min * 60 + sec : -1;
+  }
   const m = s.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
   if (!m) return -1;
   const min = parseInt(m[1], 10);
   const sec = m[2] ? parseInt(m[2], 10) : 0;
-  if (min > 15 || sec > 59) return -1;
+  if (min > 16 || sec > 59 || (min === 16 && sec > 0)) return -1;
   return min * 60 + sec;
 }
 
@@ -928,19 +1231,21 @@ function nuovoIdEvento() {
   return statoGara.eventi.reduce((max, ev) => Math.max(max, ev.id || 0), 0) + 1;
 }
 
+// RTPN Art. 17.1: sia i falli da espulsione (ET/EDS/EDA) sia i falli da rigore (TR) di un giocatore sono falli personali.
 function isSiglaFalloPersonale(sigla) {
-  return sigla === 'ET' || sigla === 'EDA' || sigla === 'EDS' || sigla === 'ED';
+  return sigla === 'ET' || sigla === 'TR' || sigla === 'EDA' || sigla === 'EDS' || sigla === 'ED';
 }
 
 function calcolaInfo3FalloGiocatore(eventi, squadra, calotta) {
   const targetNum = parseInt(calotta, 10);
   if (!Number.isFinite(targetNum)) return null;
+  const limite = getLimiteFalli();
   let falli = 0;
   for (const ev of eventi) {
     if (ev.squadra !== squadra || parseInt(ev.calotta, 10) !== targetNum) continue;
     if (!isSiglaFalloPersonale(ev.sigla)) continue;
     falli += 1;
-    if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || falli >= 3) {
+    if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || falli >= limite) {
       return { chiave: chiaveCronologica(ev), id: ev.id || 0 };
     }
   }
@@ -959,6 +1264,7 @@ function eDopoEspulsioneDefinitiva(evento, infoEspulsione) {
 function trovaConflittoEspulsione(eventiOrdinati, squadra, calotta) {
   const targetNum = parseInt(calotta, 10);
   if (!Number.isFinite(targetNum)) return null;
+  const limite = getLimiteFalli();
   let falli = 0;
   let espulsione = null;
   for (const ev of eventiOrdinati) {
@@ -968,7 +1274,7 @@ function trovaConflittoEspulsione(eventiOrdinati, squadra, calotta) {
     }
     if (isSiglaFalloPersonale(ev.sigla)) {
       falli += 1;
-      if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || falli >= 3) {
+      if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || falli >= limite) {
         espulsione = ev;
       }
     }
@@ -992,6 +1298,7 @@ function trovaIndiceUltimoEventoInserito() {
 
 function ricalcolaStatoDaEventi() {
   ordinaEventiCronologicamente();
+  const limite = getLimiteFalli();
 
   statoGara.scoreB = 0;
   statoGara.scoreN = 0;
@@ -1021,8 +1328,8 @@ function ricalcolaStatoDaEventi() {
       if (isSiglaFalloPersonale(ev.sigla) && giocatore) {
         const tempoSigla = ev.tempo.charAt(0) + 'T';
         giocatore.falli.push(`${tempoSigla} ${ev.minuto} ${ev.sigla}`);
-        // Espulsione definitiva immediata (EDA/EDS) o per raggiungimento del 3° fallo
-        if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || giocatore.falli.length >= 3) {
+        // Espulsione definitiva immediata (EDA/EDS) o per raggiungimento del limite falli (3 o 5 Esordienti)
+        if (ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED' || giocatore.falli.length >= limite) {
           if (giocatore.chiave3Fallo == null) {
             giocatore.chiave3Fallo = { chiave: chiaveCronologica(ev), id: ev.id || 0 };
           }
@@ -1043,20 +1350,30 @@ async function registraEventoStrutturato(datiEvento) {
   const { tempo, minuto, squadra, calotta, sigla } = datiEvento;
   const roster = squadra === 'B' ? statoGara.rosterB : statoGara.rosterN;
   const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
+  const limite = getLimiteFalli();
+  const secET = getDurataEspulsioneSec();
+
+  const calottaNorm = (sigla === 'TO' || (sigla === 'TR' && calotta === 'X'))
+    ? 'X'
+    : parseInt(calotta, 10);
 
   const nuovoEvento = {
     id: nuovoIdEvento(),
     tempo: tempo || document.getElementById('tempoCorrente').value,
     minuto: normalizzaMinuto(minuto || document.getElementById('minutoInput').value),
     squadra,
-    calotta: sigla === 'TO' ? 'X' : parseInt(calotta, 10),
+    calotta: calottaNorm,
     sigla,
     punteggio: ''
   };
 
   const giocatore = nuovoEvento.calotta !== 'X' ? roster.find(p => p.num === nuovoEvento.calotta) : null;
   if (giocatore && eDopoEspulsioneDefinitiva(nuovoEvento, giocatore.chiave3Fallo)) {
-    mostraAlertEspulsione(`Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) è GIÀ ESPULSO DEFINITIVAMENTE!`);
+    mostraAlertEspulsione(
+      `Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) è GIÀ ESPULSO DEFINITIVAMENTE!`,
+      'Non è consentito registrare ulteriori eventi per questo giocatore dopo l\'espulsione definitiva.',
+      'GIOCATORE GIÀ ESPULSO!'
+    );
     return false;
   }
 
@@ -1065,20 +1382,53 @@ async function registraEventoStrutturato(datiEvento) {
   statoGara.eventi.push(nuovoEvento);
   ricalcolaStatoDaEventi();
   aggiornaUI();
+  aggiornaPunteggioRigoriAnteprima();
   await salvaStatoGara(statoGara);
 
   const descr = `${nuovoEvento.tempo.charAt(0)}T ${nuovoEvento.minuto} | ${nuovoEvento.squadra} #${nuovoEvento.calotta} | ${nuovoEvento.sigla}`;
   const feedbackEl = document.getElementById('feedbackQuery');
   if (feedbackEl) feedbackEl.textContent = `✔ Registrato: ${descr}`;
 
-  // Segnale di alert per 3° fallo o per espulsione definitiva immediata (EDA / EDS)
+  // Controllo numero minimo 2 giocatori disponibili durante la gara (RTPN Art. 2.3.6)
+  const compilati = roster.filter(p => !/^Giocatore\s+[BN]\d+$/i.test(p.nome || ''));
+  let extraAvvisoMin = '';
+  if (compilati.length >= 2) {
+    const disponibili = compilati.filter(p => p.chiave3Fallo == null).length;
+    if (disponibili < 2) {
+      extraAvvisoMin = ` ⚠️ ATTENZIONE (RTPN Art. 2.3.6): ${nomeSquadra} è scesa a meno di 2 giocatori disponibili → sospensione definitiva (0-5)!`;
+    }
+  }
+
+  // Segnale di alert per limite falli (3° o 5° Esordienti) o espulsione definitiva immediata (EDA / EDS)
   if (giocatore) {
-    if (sigla === 'EDA' || sigla === 'EDS' || sigla === 'ED') {
-      mostraAlertEspulsione(`Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) - ESPULSIONE DEFINITIVA (${sigla})!`);
-    } else if (sigla === 'ET') {
+    if (sigla === 'EDA') {
+      const scad = typeof calcolaScadenzaEDA === 'function'
+        ? calcolaScadenzaEDA(nuovoEvento.tempo, minutoInSecondi(nuovoEvento.minuto), statoGara.durataQuarto)
+        : null;
+      const bandColore = squadra === 'B' ? 'BIANCA' : 'BLU';
+      const scadTxt = scad ? `Rientro sostituto (4' eff.): ${scad.testo}` : 'Rientro sostituto dopo 4\' effettivi';
+      mostraAlertEspulsione(
+        `Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) — AZIONE VIOLENTA (EDA)`,
+        `Cartellino ROSSO: il giocatore deve abbandonare il piano vasca (spogliatoi). ${scadTxt} — esporre bandierina GIALLA + ${bandColore} (RTPN Art. 3.11.2.3.2). Se commessa in gioco: assegnare TIRO DI RIGORE (Art. 10.8.2.1).${extraAvvisoMin}`,
+        'AZIONE VIOLENTA — EDA (4\')!'
+      );
+    } else if (sigla === 'EDS' || sigla === 'ED') {
+      mostraAlertEspulsione(
+        `Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) — ESPULSIONE DEFINITIVA (${sigla})`,
+        `Cartellino ROSSO (Cattiva Condotta / Art. 10.6-10.7): il giocatore deve abbandonare il piano vasca (spogliatoi). Sostituto entra dopo ${secET}"/gol/cambio possesso (o subito se in pausa di gioco).${extraAvvisoMin}`,
+        `ESPULSIONE DEFINITIVA (${sigla})!`
+      );
+    } else if (sigla === 'TR' || sigla === 'ET') {
       const falliDopo = giocatore.falli.length;
-      if (falliPrima < 3 && falliDopo >= 3) {
-        mostraAlertEspulsione(`Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) - 3° FALLO PERSONALE!`);
+      if (falliPrima < limite && falliDopo >= limite) {
+        const rientroTxt = sigla === 'TR'
+          ? `Essendo il ${limite}° fallo un FALLO DA RIGORE (TR), il sostituto può entrare IMMEDIATAMENTE (RTPN Art. 17.4.1)!`
+          : `Il sostituto può entrare dopo ${secET}"/gol/cambio possesso (RTPN Art. 17.4.2).`;
+        mostraAlertEspulsione(
+          `Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) — ${limite}° FALLO PERSONALE (${sigla})!`,
+          `Alzare BANDIERINA ROSSA (Art. 17.3). Il giocatore abbandona la panchina verso l'area riservata (NOG Art. 18). ${rientroTxt}${extraAvvisoMin}`,
+          `${limite}° FALLO PERSONALE!`
+        );
       }
     }
   }
@@ -1106,9 +1456,10 @@ function selezionaGiocatorePerAzione(squadra, num) {
   const target = document.getElementById('quickActionTarget');
 
   if (target) {
-    target.textContent = `#${num} ${squadra === 'B' ? 'Bianca' : 'Nera'} (${g.nome}) - ${g.falli.length}/3 falli`;
+    target.textContent = `#${num} ${squadra === 'B' ? 'Bianca' : 'Nera'} (${g.nome}) - ${g.falli.length}/${getLimiteFalli()} falli`;
   }
   aggiornaQuarterUI();
+  aggiornaEtichetteDurataET();
   const minQuick = document.getElementById('minutoQuickInput');
   const minMain = document.getElementById('minutoInput');
   if (minQuick && minMain) minQuick.value = minMain.value;
@@ -1159,10 +1510,41 @@ async function eseguiAzioneRapida(sigla) {
   chiudiQuickAction();
 }
 
+async function registraRigorePanchina(squadra) {
+  if (isOnlineBloccato()) {
+    aggiornaBloccoModalitaAereo();
+    return;
+  }
+  const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
+  if (!confirm(`Registrare TIRO DI RIGORE contro la panchina di ${nomeSquadra} (calotta X, NESSUN fallo personale — RTPN Art. 11.1.5 / 11.1.6.3)?`)) {
+    return;
+  }
+  const tempo = document.getElementById('tempoCorrente').value;
+  const preferId = statoGara.usaCronometro ? 'minutoInput' : 'minutoTabellone';
+  const minuto = leggiMinutoCorrenteValido(preferId);
+  if (!minuto) {
+    const feedbackEl = document.getElementById('feedbackQuery');
+    if (feedbackEl) feedbackEl.textContent = '⚠️ Minuto non valido per il Rigore da panchina.';
+    return;
+  }
+  const ok = await registraEventoStrutturato({
+    tempo,
+    minuto,
+    squadra,
+    calotta: 'X',
+    sigla: 'TR'
+  });
+  if (ok) {
+    const rigaNota = `${tempo.charAt(0)}T ${minuto.replace(':', '.')} TR contro panchina ${nomeSquadra} (nessun fallo personale — RTPN Art. 11.1.5/11.1.6.3)`;
+    appendiNotaArbitrale(rigaNota);
+    await salvaStatoGara(statoGara);
+  }
+}
+
 async function registraTimeOutRapido(squadra) {
   const usati = statoGara.eventi.filter(ev => ev.squadra === squadra && ev.sigla === 'TO').length;
   const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
-  if (usati >= 2 && !confirm(`${nomeSquadra} ha già registrato ${usati} Time Out. Vuoi registrarne un altro?`)) {
+  if (usati >= 2 && !confirm(`${nomeSquadra} ha già registrato ${usati}/2 Time Out (RTPN Art. 5.1 / 5.8.2). Vuoi registrarne comunque un altro?`)) {
     return;
   }
   const tempo = document.getElementById('tempoCorrente').value;
@@ -1173,13 +1555,16 @@ async function registraTimeOutRapido(squadra) {
     if (feedbackEl) feedbackEl.textContent = '⚠️ Minuto non valido per il Time Out.';
     return;
   }
-  await registraEventoStrutturato({
+  const ok = await registraEventoStrutturato({
     tempo,
     minuto,
     squadra,
     calotta: 'X',
     sigla: 'TO'
   });
+  if (ok) {
+    avviaTimerAusiliario('TO');
+  }
 }
 
 // ==========================================
@@ -1195,6 +1580,7 @@ async function annullaUltimoEvento() {
   const [rimosso] = statoGara.eventi.splice(idx, 1);
   ricalcolaStatoDaEventi();
   aggiornaUI();
+  aggiornaPunteggioRigoriAnteprima();
   await salvaStatoGara(statoGara);
   vibraDispositivo(100);
 
@@ -1235,17 +1621,22 @@ async function processaComando() {
       return;
     }
     const g = roster.find(p => p.num === parsed.calotta);
-    feedbackEl.textContent = `Calottina ${parsed.squadra} N.${g.num} (${g.nome}): ${g.falli.length}/3 falli (${g.falli.join(', ') || 'nessuno'}), ${g.reti} reti.`;
+    feedbackEl.textContent = `Calottina ${parsed.squadra} N.${g.num} (${g.nome}): ${g.falli.length}/${getLimiteFalli()} falli (${g.falli.join(', ') || 'nessuno'}), ${g.reti} reti.`;
     inputEl.value = '';
     return;
   }
 
   if (!parsed.sigla) {
-    feedbackEl.textContent = 'Evento non riconosciuto (usa: gol, espulsione, rigore, eda, eds, time out).';
+    feedbackEl.textContent = 'Evento non riconosciuto (usa: gol, espulsione/18s, rigore, eda/azione violenta, eds/cattiva condotta, time out).';
     return;
   }
-  if (parsed.sigla !== 'TO' && !parsed.calotta) {
-    feedbackEl.textContent = 'Manca il numero di calotta (1-15).';
+
+  let calottaFinale = parsed.calotta;
+  if (parsed.sigla === 'TR' && !calottaFinale && parsed.panchina) {
+    calottaFinale = 'X';
+  }
+  if (parsed.sigla !== 'TO' && !calottaFinale) {
+    feedbackEl.textContent = 'Manca il numero di calotta (1-15) oppure "panchina" per rigore da panchina.';
     return;
   }
 
@@ -1264,7 +1655,7 @@ async function processaComando() {
     tempo: parsed.tempo || document.getElementById('tempoCorrente').value,
     minuto: minutoEvento,
     squadra: parsed.squadra,
-    calotta: parsed.calotta,
+    calotta: calottaFinale,
     sigla: parsed.sigla
   });
 
@@ -1315,12 +1706,12 @@ async function salvaModificaEvento() {
   }
 
   let calotta;
-  if (sigla === 'TO') {
+  const rawCalotta = document.getElementById('editCalotta').value.trim().toUpperCase();
+  if (sigla === 'TO' || (sigla === 'TR' && rawCalotta === 'X')) {
     calotta = 'X';
   } else {
-    const rawCalotta = document.getElementById('editCalotta').value.trim();
     if (!/^\d{1,2}$/.test(rawCalotta)) {
-      mostraErroreEdit('Inserisci un numero di calotta valido (1-15).');
+      mostraErroreEdit('Inserisci un numero di calotta valido (1-15, oppure X per TR da panchina).');
       return;
     }
     calotta = parseInt(rawCalotta, 10);
@@ -1357,6 +1748,7 @@ async function salvaModificaEvento() {
   chiudiEditModal();
   ricalcolaStatoDaEventi();
   aggiornaUI();
+  aggiornaPunteggioRigoriAnteprima();
   await salvaStatoGara(statoGara);
 }
 
@@ -1369,13 +1761,22 @@ async function eliminaEvento(index) {
   statoGara.eventi.splice(index, 1);
   ricalcolaStatoDaEventi();
   aggiornaUI();
+  aggiornaPunteggioRigoriAnteprima();
   await salvaStatoGara(statoGara);
 }
 
 // ==========================================
-// 5. PROVVEDIMENTI PANCHINA & ALERT
+// 5. PROVVEDIMENTI PANCHINA, CONTROLLI NOG 26/27 & ALERT
 // ==========================================
-async function registraCartellinoAllenatore(squadra, tipoCartellino) {
+function appendiNotaArbitrale(rigaNota) {
+  const noteEl = document.getElementById('noteArbitrali');
+  const testoAttuale = (noteEl ? noteEl.value : statoGara.noteArbitrali || '').trim();
+  const nuovoTesto = testoAttuale ? `${testoAttuale}\n${rigaNota}` : rigaNota;
+  if (noteEl) noteEl.value = nuovoTesto;
+  statoGara.noteArbitrali = nuovoTesto;
+}
+
+async function registraCartellinoPanchina(squadra, tipoCartellino, destinatario = 'ALL') {
   if (isOnlineBloccato()) {
     aggiornaBloccoModalitaAereo();
     return;
@@ -1386,21 +1787,169 @@ async function registraCartellinoAllenatore(squadra, tipoCartellino) {
   const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
   const nomeAllenatore = squadra === 'B' ? statoGara.allBianca : statoGara.allNera;
   const dettaglioAll = nomeAllenatore ? ` (${nomeAllenatore})` : '';
-  const azione = tipoCartellino === 'GIALLO' ? 'Giallo' : 'Rosso';
-  const rigaNota = `${tempoSigla} ${minuto} ${azione} al Tecnico della squadra ${nomeSquadra}${dettaglioAll}`;
+  const feedbackEl = document.getElementById('feedbackQuery');
 
-  const noteEl = document.getElementById('noteArbitrali');
-  const testoAttuale = noteEl.value.trim();
-  const nuovoTesto = testoAttuale ? `${testoAttuale}\n${rigaNota}` : rigaNota;
+  let tipoEff = tipoCartellino;
+  if (destinatario === 'ALL' && tipoEff === 'GIALLO') {
+    const giaAmmonito = squadra === 'B' ? statoGara.cartellini?.allGialloB : statoGara.cartellini?.allGialloN;
+    if (giaAmmonito) {
+      if (confirm(`L'allenatore di ${nomeSquadra} ha già ricevuto un cartellino GIALLO: ai sensi dell'Art. 18.3.3.1 RTPN il secondo provvedimento comporta il cartellino ROSSO.\n\nPremi OK per registrare il ROSSO all'Allenatore (o Annulla per registrare comunque Giallo).`)) {
+        tipoEff = 'ROSSO';
+      }
+    }
+  }
 
-  noteEl.value = nuovoTesto;
-  statoGara.noteArbitrali = nuovoTesto;
+  let rigaNota = '';
+  if (destinatario === 'ALL') {
+    const azione = tipoEff === 'GIALLO' ? 'Cartellino Giallo' : 'Cartellino Rosso (espulsione)';
+    rigaNota = `${tempoSigla} ${minuto} ${azione} all'Allenatore ${nomeSquadra}${dettaglioAll} (RTPN Art. 18)`;
+    if (squadra === 'B') {
+      if (tipoEff === 'GIALLO') statoGara.cartellini.allGialloB = true;
+      else statoGara.cartellini.allRossoB = true;
+    } else {
+      if (tipoEff === 'GIALLO') statoGara.cartellini.allGialloN = true;
+      else statoGara.cartellini.allRossoN = true;
+    }
+    if (tipoEff === 'ROSSO' && feedbackEl) {
+      feedbackEl.textContent = `🟥 Rosso Allenatore ${nomeSquadra}: lascia il piano vasca. Eventuale 2° allenatore SIT subentra (soggetto direttamente a Rosso — RTPN Art. 18.3.7).`;
+    }
+  } else if (destinatario === 'SQ') {
+    rigaNota = `${tempoSigla} ${minuto} Cartellino Giallo all'intera squadra ${nomeSquadra} — ammonizione collettiva (RTPN Art. 18.2.4 / 18.4)`;
+    if (squadra === 'B') statoGara.cartellini.sqGialloB = true;
+    else statoGara.cartellini.sqGialloN = true;
+    if (feedbackEl) {
+      feedbackEl.textContent = `🟨 Ammonizione collettiva squadra ${nomeSquadra}: ulteriori recidive di qualsiasi giocatore comportano Cartellino Rosso (Art. 18.4.3).`;
+    }
+  } else {
+    const dettaglioDir = prompt(`Qualifica / nome del dirigente, vice-allenatore o staff sanitario di ${nomeSquadra} espulso con Rosso (Art. 18.3.4 / NOG Art. 7):`, 'Dirigente / Vice-Allenatore');
+    if (dettaglioDir === null) return;
+    const ruolo = dettaglioDir.trim() || 'Dirigente / Staff';
+    rigaNota = `${tempoSigla} ${minuto} Cartellino Rosso diretto a ${ruolo} squadra ${nomeSquadra} (RTPN Art. 18.3.4 — lascia piano vasca)`;
+    if (feedbackEl) {
+      feedbackEl.textContent = `🟥 Rosso diretto a ${ruolo} (${nomeSquadra}): deve abbandonare panchina e piano vasca.`;
+    }
+  }
 
+  appendiNotaArbitrale(rigaNota);
+  aggiornaUI();
   await salvaStatoGara(statoGara);
 }
 
-function mostraAlertEspulsione(messaggio) {
+// Alias retrocompatibile
+async function registraCartellinoAllenatore(squadra, tipoCartellino) {
+  return registraCartellinoPanchina(squadra, tipoCartellino, 'ALL');
+}
+
+function aggiornaStatoTemperatura() {
+  const el = document.getElementById('tempAcquaStatus');
+  if (!el) return;
+  if (typeof verificaTemperaturaAcquaFIN !== 'function' || !String(statoGara.tempAcqua || '').trim()) {
+    el.innerHTML = '';
+    return;
+  }
+  const esito = verificaTemperaturaAcquaFIN(statoGara.tempAcqua, statoGara.tipoImpianto);
+  if (!esito) {
+    el.innerHTML = '<span class="status-pill warn">Inserisci un valore numerico (es. 27.0)</span>';
+    return;
+  }
+  el.innerHTML = `<span class="status-pill ${esito.ok ? 'ok' : 'err'}">${escapeHtml(esito.messaggio)}</span>`;
+}
+
+function aggiornaChecklistUI() {
+  const c = statoGara.checklistPreGara || {};
+  const map = {
+    chkDae: Boolean(c.dae),
+    chkMedico: Boolean(c.medico),
+    chkForzaPubblica: Boolean(c.forzaPubblica),
+    chkCronometri: Boolean(c.cronometri)
+  };
+  Object.entries(map).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = val;
+  });
+}
+
+async function salvaChecklistPreGara() {
+  statoGara.checklistPreGara = {
+    dae: Boolean(document.getElementById('chkDae')?.checked),
+    medico: Boolean(document.getElementById('chkMedico')?.checked),
+    forzaPubblica: Boolean(document.getElementById('chkForzaPubblica')?.checked),
+    cronometri: Boolean(document.getElementById('chkCronometri')?.checked)
+  };
+  await salvaStatoGara(statoGara);
+}
+
+function aggiornaChallengeUI() {
+  ['B', 'N'].forEach(sq => {
+    const ch = statoGara.challenge?.[sq] || { usate: 0, esaurita: false };
+    const el = document.getElementById(`lblChallenge${sq}`);
+    if (!el) return;
+    if (ch.esaurita || ch.usate >= 2) {
+      el.textContent = `Esaurita (${ch.usate}/2)`;
+      el.style.color = '#f87171';
+    } else {
+      el.textContent = `Disponibile (${ch.usate}/2)`;
+      el.style.color = '#86efac';
+    }
+  });
+}
+
+async function registraChallenge(squadra, esito) {
+  if (isOnlineBloccato()) {
+    aggiornaBloccoModalitaAereo();
+    return;
+  }
+  const ch = statoGara.challenge[squadra] || { usate: 0, esaurita: false };
+  const nomeSq = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
+  if (ch.esaurita || ch.usate >= 2) {
+    alert(`${nomeSq} ha già esaurito le Coach's Challenge consentite (RTPN App. 6 Art. 1.5.8-1.5.9). Una richiesta non consentita comporta cartellino giallo all'allenatore (Art. 1.3.3).`);
+    return;
+  }
+  ch.usate += 1;
+  if (esito === 'RESPINTA' || ch.usate >= 2) {
+    ch.esaurita = true;
+  }
+  statoGara.challenge[squadra] = ch;
+  const tempo = document.getElementById('tempoCorrente').value;
+  const minuto = normalizzaMinuto(document.getElementById('minutoInput').value).replace(':', '.');
+  const statoRes = esito === 'ACCOLTA'
+    ? (ch.usate < 2 ? 'ACCOLTA (conserva 1 ulteriore richiesta)' : 'ACCOLTA (raggiunto limite 2/2)')
+    : 'RESPINTA (esaurita)';
+  appendiNotaArbitrale(`${tempo.charAt(0)}T ${minuto} Coach's Challenge ${nomeSq}: ${statoRes} (RTPN App. 6)`);
+  aggiornaChallengeUI();
+  await salvaStatoGara(statoGara);
+}
+
+async function aggiungiNotaRapidaFIN(codice) {
+  if (isOnlineBloccato()) {
+    aggiornaBloccoModalitaAereo();
+    return;
+  }
+  const tempo = document.getElementById('tempoCorrente').value;
+  const tempoSigla = tempo.charAt(0) + 'T';
+  const minuto = normalizzaMinuto(document.getElementById('minutoInput').value).replace(':', '.');
+  const map = {
+    AIUTO_ASSENTE: 'Pre-gara: Assenza di 1 unità Aiuto Giuria della Società ospitante (NOG Art. 4.1.1).',
+    FP_ASSENTE: 'Pre-gara: Mancata o tardiva esibizione richiesta Forza Pubblica ≥3 gg (NOG Art. 11).',
+    CARENZA_28: 'Pre-gara: Carenza dotazioni tecniche campo gara — 28"/18", tabellone o TO (NOG Art. 4.3).',
+    RECLAMO: `${tempoSigla} ${minuto} Presentato preavviso di reclamo con versamento tassa € 70,00 (NOG Art. 24.1).`,
+    RINUNCIA_TR: `${tempoSigla} ${minuto} Ultimo minuto: allenatore rinuncia al tiro di rigore e opta per tiro libero a metà campo con 28" (RTPN Art. 16.9).`,
+    CAMBIO_CALOTTA: `${tempoSigla} ${minuto} Autorizzato cambio numero di calottina da parte dell'Arbitro con notifica al Segretario (NOG Art. 8).`
+  };
+  const testo = map[codice];
+  if (!testo) return;
+  appendiNotaArbitrale(testo);
+  const fb = document.getElementById('feedbackQuery');
+  if (fb) fb.textContent = `📝 Annotazione aggiunta alle Note arbitrali.`;
+  await salvaStatoGara(statoGara);
+}
+
+function mostraAlertEspulsione(messaggio, dettaglio = 'Giocatore escluso definitivamente dal gioco. Alzare bandierina rossa!', titolo = 'ESPULSIONE DEFINITIVA!') {
+  const titleEl = document.getElementById('alertTitle');
+  const detailEl = document.getElementById('alertDetail');
+  if (titleEl) titleEl.textContent = titolo;
   document.getElementById('alertText').textContent = messaggio;
+  if (detailEl) detailEl.textContent = dettaglio;
   document.getElementById('alertModal').style.display = 'flex';
   vibraDispositivo([200, 100, 200, 100, 400]);
   try {
@@ -1432,6 +1981,7 @@ function apriRosterModal() {
   };
   document.getElementById('tabBtnB').textContent = `BIANCA (${statoGara.sqBianca})`;
   document.getElementById('tabBtnN').textContent = `NERA (${statoGara.sqNera})`;
+  aggiornaInfoCategoriaUI();
   cambiaTabRoster(tabRosterAttivo);
   document.getElementById('rosterModal').style.display = 'block';
 }
@@ -1458,13 +2008,17 @@ function cambiaTabRoster(squadra) {
   const roster = squadra === 'B' ? statoGara.rosterB : statoGara.rosterN;
   const container = document.getElementById('rosterEditList');
 
-  container.innerHTML = roster.map(g => `
-    <div class="roster-table-row">
-      <div style="font-weight:bold; text-align:center;">#${g.num}</div>
-      <input type="text" id="r_nome_${g.num}" value="${escapeHtml(g.nome)}" placeholder="Cognome Nome (es. con (Cap.))">
-      <input type="text" id="r_tess_${g.num}" value="${escapeHtml(g.tessera || '')}" placeholder="Tessera FIN">
-    </div>
-  `).join('');
+  container.innerHTML = roster.map(g => {
+    const isPortiereNum = (g.num === 1 || g.num === 13);
+    const numStyle = isPortiereNum ? 'font-weight:bold; text-align:center; color:#f87171;' : 'font-weight:bold; text-align:center;';
+    const ph = isPortiereNum ? 'Portiere (calotta rossa)' : 'Cognome Nome (es. "(Cap.)")';
+    return `
+      <div class="roster-table-row">
+        <div style="${numStyle}">#${g.num}${isPortiereNum ? 'P' : ''}</div>
+        <input type="text" id="r_nome_${g.num}" value="${escapeHtml(g.nome)}" placeholder="${ph}">
+        <input type="text" id="r_tess_${g.num}" value="${escapeHtml(g.tessera || '')}" placeholder="Tessera FIN">
+      </div>`;
+  }).join('');
 }
 
 function leggiCampiRosterCorrente() {
@@ -1533,6 +2087,7 @@ async function salvaRostersManuali() {
   leggiCampiRosterCorrente();
   rosterSnapshot = null;
   aggiornaUI();
+  aggiornaPunteggioRigoriAnteprima();
   await salvaStatoGara(statoGara);
   chiudiRosterModal();
 }
@@ -1576,24 +2131,54 @@ function aggiornaUI() {
   if (btnToB) btnToB.textContent = `⏱ TO BIANCA (${toB}/2)`;
   if (btnToN) btnToN.textContent = `⏱ TO NERA (${toN}/2)`;
 
+  // Indicatori cartellini allenatore
+  const btnGB = document.getElementById('btnGialloAllB');
+  const btnGN = document.getElementById('btnGialloAllN');
+  if (btnGB) btnGB.textContent = statoGara.cartellini?.allGialloB ? '🟨 GIALLO ALL. BIANCA (✓ già amm.)' : '🟨 GIALLO ALL. BIANCA';
+  if (btnGN) btnGN.textContent = statoGara.cartellini?.allGialloN ? '🟨 GIALLO ALL. NERA (✓ già amm.)' : '🟨 GIALLO ALL. NERA';
+
+  // Banner EDA 4' (Art. 10.8 / 3.11.2.3.2 RTPN)
+  const edaBanner = document.getElementById('edaActiveBanner');
+  if (edaBanner) {
+    const eventiEDA = statoGara.eventi.filter(ev => ev.sigla === 'EDA');
+    if (eventiEDA.length > 0 && typeof calcolaScadenzaEDA === 'function') {
+      edaBanner.innerHTML = eventiEDA.map(ev => {
+        const scad = calcolaScadenzaEDA(ev.tempo, minutoInSecondi(ev.minuto), statoGara.durataQuarto);
+        const band = ev.squadra === 'B' ? 'Gialla + Bianca' : 'Gialla + Blu';
+        return `<div class="eda-banner-row">
+          <span>🟥 <strong>EDA ${escapeHtml(ev.squadra)} #${escapeHtml(ev.calotta)}</strong> (${ev.tempo.charAt(0)}°T ${escapeHtml(ev.minuto)})</span>
+          <span>Rientro 4': <strong>${escapeHtml(scad ? scad.testo : '4\' eff.')}</strong> [${band}]</span>
+        </div>`;
+      }).join('');
+      edaBanner.style.display = 'block';
+    } else {
+      edaBanner.style.display = 'none';
+    }
+  }
+
+  const limite = getLimiteFalli();
+  const dotClassSize = limite === 5 ? ' sm' : '';
+  const dotArray = Array.from({ length: limite }, (_, i) => i + 1);
+
   const renderRoster = (lista, elId, squadra) => {
     const container = document.getElementById(elId);
     container.innerHTML = lista.map(g => {
       const fCount = g.falli.length;
       const isExpelled = g.chiave3Fallo != null;
-      const dots = [1, 2, 3].map(n => {
-        if (n <= fCount) return `<span class="dot ${isExpelled ? 'out' : 'active'}"></span>`;
-        return `<span class="dot"></span>`;
+      const dots = dotArray.map(n => {
+        if (n <= fCount) return `<span class="dot${dotClassSize} ${isExpelled ? 'out' : 'active'}"></span>`;
+        return `<span class="dot${dotClassSize}"></span>`;
       }).join('');
       const nomeBreve = g.nome.startsWith('Giocatore ') ? '' : g.nome.split(' ')[0];
       const isSelected = giocatoreSelezionatoAzione && giocatoreSelezionatoAzione.squadra === squadra && giocatoreSelezionatoAzione.calotta === g.num;
-      
+      const isPortiereNum = (g.num === 1 || g.num === 13);
+
       return `
-        <div class="player-row ${isSelected ? 'selected' : ''}" 
+        <div class="player-row ${isSelected ? 'selected' : ''} ${isExpelled ? 'expelled-row' : ''}"
              id="prow_${squadra}_${g.num}"
              onclick="selezionaGiocatorePerAzione('${squadra}', ${g.num})">
-          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:115px;">
-            <strong>#${g.num}</strong> ${escapeHtml(nomeBreve)} (${g.reti}G)
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px;">
+            <strong${isPortiereNum ? ' style="color:#f87171;"' : ''}>#${g.num}</strong> ${escapeHtml(nomeBreve)} (${g.reti}G)
           </span>
           <div class="fouls">${dots}</div>
         </div>`;
@@ -1639,45 +2224,138 @@ function aggiornaUI() {
 }
 
 // ==========================================
-// 8. TIRI DI RIGORE GUIDATI
+// 8. TIRI DI RIGORE GUIDATI (RTPN APPENDICE 4)
 // ==========================================
+function setEspulsiSquadra(squadra) {
+  const roster = squadra === 'B' ? statoGara.rosterB : statoGara.rosterN;
+  return new Set(roster.filter(g => g.chiave3Fallo != null).map(g => g.num));
+}
+
+function aggiornaOpzioniCalottaRigori(analisi = null) {
+  const selSq = document.getElementById('rigoreSquadra');
+  const selCal = document.getElementById('rigoreCalotta');
+  if (!selSq || !selCal) return;
+  const sq = selSq.value;
+  const prevVal = parseInt(selCal.value, 10);
+  const roster = sq === 'B' ? statoGara.rosterB : statoGara.rosterN;
+
+  let analisiCorrente = analisi;
+  if (!analisiCorrente && typeof analizzaSerieRigoriFIN === 'function') {
+    const info = calcolaRigoriSicuro(statoGara.tiriRigore);
+    analisiCorrente = analizzaSerieRigoriFIN(info ? info.tiri : [], setEspulsiSquadra('B'), setEspulsiSquadra('N'));
+  }
+
+  const tiratiPrimi5 = new Set((analisiCorrente?.perSq?.[sq] || []).slice(0, 5).map(x => x.cal));
+  const suggeritaOltranza = analisiCorrente?.prossimaCalotta?.[sq] || null;
+
+  selCal.innerHTML = roster.map(g => {
+    const espulso = g.chiave3Fallo != null;
+    const nome = g.nome.startsWith('Giocatore ') ? '' : ` ${g.nome}`;
+    const giaTirato = !suggeritaOltranza && tiratiPrimi5.has(g.num);
+    const label = espulso
+      ? `#${g.num}${nome} — ESPULSO (vietato)`
+      : `#${g.num}${nome}${giaTirato ? ' (già tirato)' : ''}${suggeritaOltranza === g.num ? ' ★ prossimo ordine' : ''}`;
+    return `<option value="${g.num}"${espulso ? ' disabled' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+
+  // Selezione intelligente: in oltranza pre-seleziona il prossimo nell'ordine 1-5; altrimenti primo non espulso e non ancora tirato
+  if (suggeritaOltranza && !roster.find(g => g.num === suggeritaOltranza)?.chiave3Fallo) {
+    selCal.value = String(suggeritaOltranza);
+  } else if (Number.isFinite(prevVal) && !roster.find(g => g.num === prevVal)?.chiave3Fallo && !tiratiPrimi5.has(prevVal)) {
+    selCal.value = String(prevVal);
+  } else {
+    const primoLibero = roster.find(g => g.chiave3Fallo == null && !tiratiPrimi5.has(g.num))
+      || roster.find(g => g.chiave3Fallo == null);
+    if (primoLibero) selCal.value = String(primoLibero.num);
+  }
+}
+
 function aggiornaPunteggioRigoriAnteprima() {
   const textarea = document.getElementById('tiriRigore');
   const anteprima = document.getElementById('anteprimaPunteggioRigori');
+  const statoEl = document.getElementById('statoSerieRigori');
+  const avvisiEl = document.getElementById('avvisiRigori');
   if (!textarea || !anteprima) return;
   const val = textarea.value;
+  let analisi = null;
+
   try {
     const { punteggio, tiri } = leggiTiriDiRigoreFIN(val);
     anteprima.textContent = `Rigori (${tiri.length} tirati): B ${punteggio.B} - N ${punteggio.N}`;
     anteprima.style.color = '#38bdf8';
+
+    if (typeof analizzaSerieRigoriFIN === 'function') {
+      analisi = analizzaSerieRigoriFIN(tiri, setEspulsiSquadra('B'), setEspulsiSquadra('N'));
+      if (statoEl) {
+        if (tiri.length === 0) {
+          statoEl.textContent = '';
+        } else if (analisi.conclusa) {
+          const nomeVinc = analisi.vincitore === 'B' ? statoGara.sqBianca : statoGara.sqNera;
+          statoEl.textContent = `🏆 ${analisi.statoTesto} — Vince ${nomeVinc}!`;
+          statoEl.style.color = '#86efac';
+        } else {
+          statoEl.textContent = `ℹ️ ${analisi.statoTesto}`;
+          statoEl.style.color = '#bae6fd';
+        }
+      }
+      if (avvisiEl) {
+        if (analisi.avvisi.length > 0) {
+          avvisiEl.innerHTML = analisi.avvisi.map(a => `<div>⚠️ ${escapeHtml(a)}</div>`).join('');
+          avvisiEl.style.display = 'block';
+        } else {
+          avvisiEl.style.display = 'none';
+        }
+      }
+    }
   } catch (e) {
     anteprima.textContent = `Rigori: ${e.message.split(':')[0] || 'formato non valido'}`;
     anteprima.style.color = '#f87171';
+    if (statoEl) statoEl.textContent = '';
+    if (avvisiEl) avvisiEl.style.display = 'none';
   }
+  aggiornaOpzioniCalottaRigori(analisi);
   aggiornaUI();
 }
 
 async function aggiungiTiroRigoreGuidato(esito) {
+  if (isOnlineBloccato()) {
+    aggiornaBloccoModalitaAereo();
+    return;
+  }
   const sq = document.getElementById('rigoreSquadra').value;
-  const cal = parseInt(document.getElementById('rigoreCalotta').value, 10) || 1;
+  const cal = parseInt(document.getElementById('rigoreCalotta').value, 10);
+  if (!Number.isFinite(cal) || cal < 1 || cal > 15) return;
+
+  // Controllo blocco tiratore espulso definitivamente (RTPN App. 4 Art. 1.5.2.2)
+  if (setEspulsiSquadra(sq).has(cal)) {
+    mostraAlertEspulsione(
+      `Calottina ${sq} N.${cal} è ESPULSO DEFINITIVAMENTE!`,
+      'Ai sensi dell\'Appendice 4 Art. 1.5.2.2 RTPN nessun giocatore con limite falli o espulso definitivamente può partecipare alla serie dei tiri di rigore.',
+      'TIRATORE NON AMMESSO!'
+    );
+    return;
+  }
+
   const textarea = document.getElementById('tiriRigore');
   const riga = `${sq} ${cal} ${esito}`;
   const attuale = textarea.value.trim();
   textarea.value = attuale ? `${attuale}\n${riga}` : riga;
   statoGara.tiriRigore = textarea.value;
+
+  // Alterna automaticamente squadra per il tiro successivo PRIMA di ricalcolare le opzioni
+  document.getElementById('rigoreSquadra').value = (sq === 'B' ? 'N' : 'B');
   aggiornaPunteggioRigoriAnteprima();
   await salvaStatoGara(statoGara);
   vibraDispositivo(50);
-
-  // Alterna automaticamente squadra per il tiro successivo
-  document.getElementById('rigoreSquadra').value = (sq === 'B' ? 'N' : 'B');
 }
 
 async function annullaUltimoTiroRigore() {
   const textarea = document.getElementById('tiriRigore');
   const righe = textarea.value.trim().split(/\r?\n/).filter(Boolean);
   if (righe.length === 0) return;
-  righe.pop();
+  const rimossa = righe.pop();
+  const matchSq = rimossa.match(/^([BNbn])/);
+  if (matchSq) document.getElementById('rigoreSquadra').value = matchSq[1].toUpperCase();
   textarea.value = righe.join('\n');
   statoGara.tiriRigore = textarea.value;
   aggiornaPunteggioRigoriAnteprima();
@@ -2044,7 +2722,8 @@ async function scaricaBackupArchivio() {
 let azioneRiepilogoRichiesta = null;
 
 function nomeGiocatorePerRiepilogo(ev) {
-  if (ev.sigla === 'TO' || ev.calotta === 'X') return 'Time Out';
+  if (ev.sigla === 'TO') return 'Time Out';
+  if (ev.calotta === 'X') return 'Panchina (no fallo pers.)';
   const roster = ev.squadra === 'B' ? statoGara.rosterB : statoGara.rosterN;
   const g = roster.find(p => p.num === parseInt(ev.calotta, 10));
   if (!g || g.nome.startsWith('Giocatore ')) return `#${ev.calotta}`;
@@ -2073,10 +2752,10 @@ function renderRiepilogoModal() {
       ${rigoriInfo ? `<span style="font-size:0.82rem; color:#94a3b8;">(d.t.r. ${totB}-${totN})</span>` : ''}
     </div>
     <div style="color:#cbd5e1; font-size:0.8rem; margin-bottom:4px;">Parziali: ${parzialiHtml}</div>
-    <div style="color:#94a3b8; font-size:0.78rem;">Totale azioni registrate: <strong>${statoGara.eventi.length}</strong>${compilatoreRiepilogo ? ` • Compilatore (solo archivio): <strong>${escapeHtml(compilatoreRiepilogo)}</strong>` : ''}</div>
+    <div style="color:#94a3b8; font-size:0.78rem;">Totale azioni registrate: <strong>${statoGara.eventi.length}</strong> • Limite falli: <strong>${getLimiteFalli()}</strong>${compilatoreRiepilogo ? ` • Compilatore (solo archivio): <strong>${escapeHtml(compilatoreRiepilogo)}</strong>` : ''}</div>
   `;
 
-  const minutoInizioQuarto = formattaTempo(statoGara.durataQuarto || 420);
+  const minutoInizioQuarto = formattaTempo(statoGara.durataQuarto || 480);
   const eventiAlMinutoIniziale = statoGara.eventi.filter(ev => ev.minuto === minutoInizioQuarto);
   const avvisi = [];
   if (statoGara.eventi.length === 0) {
@@ -2087,6 +2766,34 @@ function renderRiepilogoModal() {
   }
   if (!String(statoGara.numeroGara || '').trim() || !String(statoGara.arbitro1 || '').trim()) {
     avvisi.push('Promemoria: verifica numero gara e nominativo Arbitro 1 nei dati del verbale.');
+  }
+
+  // Verifiche regolamentari FIN 2026/2027 (non bloccanti)
+  const profCat = typeof trovaProfiloCategoriaFIN === 'function' ? trovaProfiloCategoriaFIN(statoGara.categoria) : null;
+  if (profCat && profCat.aiutoGiuria > 0 && !String(statoGara.aiutoGiuria || '').trim()) {
+    avvisi.push(`NOG Art. 4.1.1: per ${profCat.nome} sono previsti ${profCat.aiutoGiuria} Aiuto Giuria (campo attualmente vuoto).`);
+  }
+  if (String(statoGara.tempAcqua || '').trim() && typeof verificaTemperaturaAcquaFIN === 'function') {
+    const tCheck = verificaTemperaturaAcquaFIN(statoGara.tempAcqua, statoGara.tipoImpianto);
+    if (tCheck && !tCheck.ok) avvisi.push(tCheck.messaggio);
+  }
+  // Controllo composizione distinte (se compilate)
+  [
+    { sq: statoGara.sqBianca, roster: statoGara.rosterB },
+    { sq: statoGara.sqNera, roster: statoGara.rosterN }
+  ].forEach(({ sq, roster }) => {
+    const compilati = roster.filter(p => !/^Giocatore\s+[BN]\d+$/i.test(p.nome || '')).length;
+    if (compilati > 0 && compilati < 7) {
+      avvisi.push(`Distinta ${sq}: risultano solo ${compilati} giocatori nominati (minimo 7 per iniziare — NOG Art. 5.1).`);
+    }
+    if (profCat && profCat.gruppo === 'Assoluti' && compilati > 14) {
+      avvisi.push(`Distinta ${sq}: risultano ${compilati} giocatori nominati (max 14 nei Campionati Assoluti — NOG Art. 5.1).`);
+    }
+  });
+  // Controllo anomalie tiri di rigore (App. 4 RTPN)
+  if (rigoriInfo && typeof analizzaSerieRigoriFIN === 'function') {
+    const analisiRig = analizzaSerieRigoriFIN(rigoriInfo.tiri, setEspulsiSquadra('B'), setEspulsiSquadra('N'));
+    analisiRig.avvisi.forEach(a => avvisi.push(`Rigori — ${a}`));
   }
 
   if (avvisi.length > 0) {
@@ -2200,4 +2907,82 @@ async function importaBackupArchivioDaFile(inputEl) {
   } finally {
     inputEl.value = '';
   }
+}
+
+// ==========================================
+// 12. PRONTUARIO REGOLAMENTI FIN 2026/2027 (100% OFFLINE)
+// ==========================================
+function apriRegolamentoModal() {
+  const inp = document.getElementById('rulesSearchInput');
+  if (inp) inp.value = '';
+  renderRegolamentoModal();
+  document.getElementById('rulesModal').style.display = 'block';
+}
+
+function chiudiRegolamentoModal() {
+  document.getElementById('rulesModal').style.display = 'none';
+}
+
+function renderRegolamentoModal() {
+  const body = document.getElementById('rulesModalBody');
+  if (!body) return;
+  const q = String(document.getElementById('rulesSearchInput')?.value || '').trim().toLowerCase();
+
+  let html = '';
+
+  // Tabella riepilogativa campionati FIN 2026/27
+  if (typeof CATEGORIE_FIN_26_27 !== 'undefined') {
+    const righeCat = CATEGORIE_FIN_26_27.filter(c =>
+      !q || c.nome.toLowerCase().includes(q) || c.note.toLowerCase().includes(q) || String(c.aiutoGiuria).includes(q)
+    );
+    if (righeCat.length > 0) {
+      html += `
+        <div class="rules-section">
+          <h4>Tabella Campionati FIN 2026/2027 (Tempi, Falli, Aiuto Giuria)</h4>
+          <div style="overflow-x:auto;">
+            <table class="rules-table">
+              <thead>
+                <tr>
+                  <th>Categoria</th>
+                  <th>Tempi</th>
+                  <th>Falli</th>
+                  <th>Int.</th>
+                  <th>Aiuto G.</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${righeCat.map(c => `
+                  <tr>
+                    <td><strong>${escapeHtml(c.nome)}</strong></td>
+                    <td>4×${c.durataQuarto / 60}' ${c.tempoEffettivo ? 'eff.' : 'cont.'}</td>
+                    <td>${c.limiteFalli}</td>
+                    <td>${c.intervalloMeta === 300 ? "2'-5'-2'" : "2'"}</td>
+                    <td>${c.aiutoGiuria || '—'}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+  }
+
+  // Sezioni prontuario NOG + RTPN
+  if (typeof PRONTUARIO_FIN_26_27 !== 'undefined') {
+    PRONTUARIO_FIN_26_27.forEach(sez => {
+      const punti = q
+        ? sez.punti.filter(p => p.toLowerCase().includes(q) || sez.titolo.toLowerCase().includes(q))
+        : sez.punti;
+      if (punti.length === 0) return;
+      html += `
+        <div class="rules-section">
+          <h4>${escapeHtml(sez.titolo)}</h4>
+          <ul>${punti.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>
+        </div>`;
+    });
+  }
+
+  if (!html) {
+    html = '<p style="color:#94a3b8; text-align:center; font-size:0.85rem;">Nessuna regola trovata per questa ricerca.</p>';
+  }
+  body.innerHTML = html;
 }
