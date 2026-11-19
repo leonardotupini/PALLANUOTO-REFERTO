@@ -107,7 +107,7 @@ function compilaSquadraVerbaleFIN(scrivi, nome, squadra, risultato, roster, even
       const gol = periodo.filter(evento => evento.sigla === 'GOL' && evento.squadra === squadra && Number(evento.calotta) === giocatore.num).length;
       if (gol) scrivi(gol, 152.2 + i * 15.9, 168.2 + i * 15.9, y);
     });
-    eventi.filter(evento => Number(evento.calotta) === giocatore.num && (evento.sigla === 'ET' || evento.sigla === 'TR' || evento.sigla === 'EDA' || evento.sigla === 'EDS' || evento.sigla === 'ED'))
+    eventi.filter(evento => Number(evento.calotta) === giocatore.num && (evento.sigla === 'ET' || evento.sigla === 'EDA' || evento.sigla === 'EDS' || evento.sigla === 'ED'))
       .forEach((evento, i) => {
         const tempo = `${evento.tempo[0]}T ${evento.minuto.replace(':', '.')}`;
         if (i >= 3) {

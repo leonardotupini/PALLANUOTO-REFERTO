@@ -929,7 +929,7 @@ function nuovoIdEvento() {
 }
 
 function isSiglaFalloPersonale(sigla) {
-  return sigla === 'ET' || sigla === 'TR' || sigla === 'EDA' || sigla === 'EDS' || sigla === 'ED';
+  return sigla === 'ET' || sigla === 'EDA' || sigla === 'EDS' || sigla === 'ED';
 }
 
 function calcolaInfo3FalloGiocatore(eventi, squadra, calotta) {
@@ -1018,8 +1018,7 @@ function ricalcolaStatoDaEventi() {
       ev.punteggio = `${statoGara.scoreB}-${statoGara.scoreN}`;
     } else {
       ev.punteggio = '';
-      const isFallo = (ev.sigla === 'ET' || ev.sigla === 'TR' || ev.sigla === 'EDA' || ev.sigla === 'EDS' || ev.sigla === 'ED');
-      if (isFallo && giocatore) {
+      if (isSiglaFalloPersonale(ev.sigla) && giocatore) {
         const tempoSigla = ev.tempo.charAt(0) + 'T';
         giocatore.falli.push(`${tempoSigla} ${ev.minuto} ${ev.sigla}`);
         // Espulsione definitiva immediata (EDA/EDS) o per raggiungimento del 3° fallo
@@ -1076,7 +1075,7 @@ async function registraEventoStrutturato(datiEvento) {
   if (giocatore) {
     if (sigla === 'EDA' || sigla === 'EDS' || sigla === 'ED') {
       mostraAlertEspulsione(`Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) - ESPULSIONE DEFINITIVA (${sigla})!`);
-    } else if (sigla === 'ET' || sigla === 'TR') {
+    } else if (sigla === 'ET') {
       const falliDopo = giocatore.falli.length;
       if (falliPrima < 3 && falliDopo >= 3) {
         mostraAlertEspulsione(`Calottina ${squadra} N.${giocatore.num} (${nomeSquadra}) - 3° FALLO PERSONALE!`);
