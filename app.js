@@ -302,11 +302,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  caricaPreferenzaSoloAereo();
   verificaProntezzaOffline();
-  aggiornaBloccoModalitaAereo();
-  window.addEventListener('online', () => aggiornaBloccoModalitaAereo());
-  window.addEventListener('offline', () => aggiornaBloccoModalitaAereo());
+  window.addEventListener('online', () => aggiornaStatoOfflineUI());
+  window.addEventListener('offline', () => aggiornaStatoOfflineUI());
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       verificaProntezzaOffline();
@@ -315,84 +313,23 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================
-// 0. VERIFICA PRONTEZZA OFFLINE & BLOCCO MODALITÀ AEREO (OPZIONALE)
+// 0. VERIFICA PRONTEZZA OFFLINE
 // ==========================================
 const RISORSE_OFFLINE = [
   './index.html', './app.js', './db.js', './manifest.json',
   './lib/pdf-lib.min.js', './lib/fontkit.umd.min.js', './lib/NotoSans-Bold.ttf',
   './regolamento-fin.js', './verbale-fin.js', './modello_verbale_fin_2021.pdf'
 ];
-const KEY_SOLO_AEREO = 'referto_fin_solo_modalita_aereo';
 
 let cacheOfflinePronta = false;
-let soloModalitaAereo = false;
 
-function caricaPreferenzaSoloAereo() {
-  try {
-    soloModalitaAereo = localStorage.getItem(KEY_SOLO_AEREO) === 'Y';
-  } catch (e) {
-    soloModalitaAereo = false;
-  }
-  const sel = document.getElementById('toggleAirplaneOnly');
-  if (sel) sel.value = soloModalitaAereo ? 'Y' : 'N';
-}
-
-function cambiaModalitaSoloAereo() {
-  const sel = document.getElementById('toggleAirplaneOnly');
-  soloModalitaAereo = sel ? sel.value === 'Y' : false;
-  try {
-    localStorage.setItem(KEY_SOLO_AEREO, soloModalitaAereo ? 'Y' : 'N');
-  } catch (e) {}
-  aggiornaBloccoModalitaAereo(true);
-}
-
-function disattivaBloccoModalitaAereo() {
-  soloModalitaAereo = false;
-  const sel = document.getElementById('toggleAirplaneOnly');
-  if (sel) sel.value = 'N';
-  try {
-    localStorage.setItem(KEY_SOLO_AEREO, 'N');
-  } catch (e) {}
-  aggiornaBloccoModalitaAereo(false);
-}
-
-function isOnlineBloccato() {
-  return soloModalitaAereo && navigator.onLine !== false;
-}
-
-function aggiornaStatoGateCache(testo, classe) {
-  const gateCache = document.getElementById('airplaneGateCacheStatus');
-  if (!gateCache) return;
-  gateCache.textContent = testo;
-  gateCache.className = classe || '';
-}
-
-function aggiornaBloccoModalitaAereo(forzaVerificaCache = false) {
-  const modal = document.getElementById('airplaneGateModal');
-  const msgEl = document.getElementById('airplaneGateMsg');
+function aggiornaStatoOfflineUI() {
   const statoEl = document.getElementById('statoOffline');
-  if (forzaVerificaCache) verificaProntezzaOffline();
-
-  if (isOnlineBloccato()) {
-    if (document.activeElement && typeof document.activeElement.blur === 'function') {
-      document.activeElement.blur();
-    }
-    if (msgEl) {
-      msgEl.innerHTML = cacheOfflinePronta
-        ? 'Connessione di rete rilevata. Hai attivato l’opzione <strong>Solo in Modalità Aereo</strong>: disattiva Wi-Fi e Dati Mobili per continuare, oppure disattiva il blocco qui sotto.'
-        : 'Connessione di rete rilevata. Attendi il completamento della cache offline qui sotto, poi attiva la <strong>Modalità Aereo</strong> (oppure disattiva il blocco).';
-    }
-    if (modal) modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  } else {
-    if (modal) modal.style.display = 'none';
-    document.body.style.overflow = '';
-    if (statoEl && cacheOfflinePronta) {
-      statoEl.className = 'ok';
-      statoEl.textContent = navigator.onLine === false
-        ? '✈️ Modalità Aereo attiva — Referto e PDF pronti offline.'
-        : '✅ Inserimento rapido e PDF pronti anche offline.';
-    }
+  if (statoEl && cacheOfflinePronta) {
+    statoEl.className = 'ok';
+    statoEl.textContent = navigator.onLine === false
+      ? '✈️ Connessione assente — Referto e PDF pronti offline.'
+      : '✅ Inserimento rapido e PDF pronti anche offline.';
   }
 }
 
@@ -408,14 +345,12 @@ async function verificaProntezzaOffline() {
   if (!window.isSecureContext || location.protocol === 'file:') {
     cacheOfflinePronta = false;
     imposta('⚠️ Apri la v2 via HTTPS o localhost per usare l’app e stampare il verbale offline.', 'warn');
-    aggiornaStatoGateCache('⚠️ Apri l’app via HTTPS o localhost per abilitare la cache offline.', 'warn');
     return;
   }
 
   if (!('serviceWorker' in navigator) || !('caches' in window)) {
     cacheOfflinePronta = false;
     imposta('⚠️ Questo browser non supporta il funzionamento offline. Usa Chrome per Android.', 'warn');
-    aggiornaStatoGateCache('⚠️ Browser senza supporto cache offline.', 'warn');
     return;
   }
   try {
@@ -427,25 +362,14 @@ async function verificaProntezzaOffline() {
 
     if (mancanti.length === 0) {
       cacheOfflinePronta = true;
-      imposta(
-        isOnlineBloccato()
-          ? '✅ File salvati offline. Attiva la Modalità Aereo per iniziare.'
-          : (navigator.onLine === false
-              ? '✈️ Modalità Aereo attiva — Referto e PDF pronti offline.'
-              : '✅ Inserimento rapido e PDF pronti anche offline.'),
-        'ok'
-      );
-      aggiornaStatoGateCache('✅ Cache offline pronta: ora puoi attivare la Modalità Aereo.', 'ok');
+      aggiornaStatoOfflineUI();
     } else {
       cacheOfflinePronta = false;
       imposta(`⚠️ App non ancora pronta offline. Mancano in cache: ${mancanti.join(', ')}. Apri l'app con rete attiva e verifica che i file siano nella cartella.`, 'warn');
-      aggiornaStatoGateCache(`⏳ Mancano in cache: ${mancanti.join(', ')}. Attendi o ricarica con rete attiva.`, 'warn');
     }
-    aggiornaBloccoModalitaAereo(false);
   } catch (e) {
     cacheOfflinePronta = false;
     imposta('⚠️ Impossibile verificare la cache offline.', 'warn');
-    aggiornaStatoGateCache('⚠️ Impossibile verificare la cache offline.', 'warn');
   }
 }
 
@@ -1343,10 +1267,6 @@ function ricalcolaStatoDaEventi() {
 // REGISTRAZIONE EVENTI CENTRALIZZATA
 // ==========================================
 async function registraEventoStrutturato(datiEvento) {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return false;
-  }
   const { tempo, minuto, squadra, calotta, sigla } = datiEvento;
   const roster = squadra === 'B' ? statoGara.rosterB : statoGara.rosterN;
   const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
@@ -1511,10 +1431,6 @@ async function eseguiAzioneRapida(sigla) {
 }
 
 async function registraRigorePanchina(squadra) {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
   if (!confirm(`Registrare TIRO DI RIGORE contro la panchina di ${nomeSquadra} (calotta X, NESSUN fallo personale — RTPN Art. 11.1.5 / 11.1.6.3)?`)) {
     return;
@@ -1571,10 +1487,6 @@ async function registraTimeOutRapido(squadra) {
 // UNDO RAPIDO ULTIMO EVENTO
 // ==========================================
 async function annullaUltimoEvento() {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   const idx = trovaIndiceUltimoEventoInserito();
   if (idx < 0) return;
   const [rimosso] = statoGara.eventi.splice(idx, 1);
@@ -1591,10 +1503,6 @@ async function annullaUltimoEvento() {
 }
 
 async function processaComando() {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   const inputEl = document.getElementById('comandoInput');
   const feedbackEl = document.getElementById('feedbackQuery');
   const testo = inputEl.value;
@@ -1690,10 +1598,6 @@ function mostraErroreEdit(msg) {
 }
 
 async function salvaModificaEvento() {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   const idx = parseInt(document.getElementById('editIndex').value, 10);
   const sigla = document.getElementById('editSigla').value;
   const tempo = document.getElementById('editTempo').value;
@@ -1753,10 +1657,6 @@ async function salvaModificaEvento() {
 }
 
 async function eliminaEvento(index) {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   if (!confirm('Eliminare questa riga dal referto? I punteggi e i falli verranno ricalcolati.')) return;
   statoGara.eventi.splice(index, 1);
   ricalcolaStatoDaEventi();
@@ -1776,14 +1676,18 @@ function appendiNotaArbitrale(rigaNota) {
   statoGara.noteArbitrali = nuovoTesto;
 }
 
+function leggiMinutoNotaArbitrale() {
+  const preferId = statoGara.usaCronometro ? 'minutoInput' : 'minutoTabellone';
+  const valido = leggiMinutoCorrenteValido(preferId);
+  if (valido) return valido.replace(':', '.');
+  const fallback = normalizzaMinuto(document.getElementById('minutoInput')?.value || '');
+  return (fallback || formattaTempo(secondiRimanenti)).replace(':', '.');
+}
+
 async function registraCartellinoPanchina(squadra, tipoCartellino, destinatario = 'ALL') {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   const tempo = document.getElementById('tempoCorrente').value;
   const tempoSigla = tempo.charAt(0) + 'T';
-  const minuto = normalizzaMinuto(document.getElementById('minutoInput').value).replace(':', '.');
+  const minuto = leggiMinutoNotaArbitrale();
   const nomeSquadra = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
   const nomeAllenatore = squadra === 'B' ? statoGara.allBianca : statoGara.allNera;
   const dettaglioAll = nomeAllenatore ? ` (${nomeAllenatore})` : '';
@@ -1895,10 +1799,6 @@ function aggiornaChallengeUI() {
 }
 
 async function registraChallenge(squadra, esito) {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   const ch = statoGara.challenge[squadra] || { usate: 0, esaurita: false };
   const nomeSq = squadra === 'B' ? statoGara.sqBianca : statoGara.sqNera;
   if (ch.esaurita || ch.usate >= 2) {
@@ -1911,7 +1811,7 @@ async function registraChallenge(squadra, esito) {
   }
   statoGara.challenge[squadra] = ch;
   const tempo = document.getElementById('tempoCorrente').value;
-  const minuto = normalizzaMinuto(document.getElementById('minutoInput').value).replace(':', '.');
+  const minuto = leggiMinutoNotaArbitrale();
   const statoRes = esito === 'ACCOLTA'
     ? (ch.usate < 2 ? 'ACCOLTA (conserva 1 ulteriore richiesta)' : 'ACCOLTA (raggiunto limite 2/2)')
     : 'RESPINTA (esaurita)';
@@ -1921,13 +1821,9 @@ async function registraChallenge(squadra, esito) {
 }
 
 async function aggiungiNotaRapidaFIN(codice) {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   const tempo = document.getElementById('tempoCorrente').value;
   const tempoSigla = tempo.charAt(0) + 'T';
-  const minuto = normalizzaMinuto(document.getElementById('minutoInput').value).replace(':', '.');
+  const minuto = leggiMinutoNotaArbitrale();
   const map = {
     AIUTO_ASSENTE: 'Pre-gara: Assenza di 1 unità Aiuto Giuria della Società ospitante (NOG Art. 4.1.1).',
     FP_ASSENTE: 'Pre-gara: Mancata o tardiva esibizione richiesta Forza Pubblica ≥3 gg (NOG Art. 11).',
@@ -2318,10 +2214,6 @@ function aggiornaPunteggioRigoriAnteprima() {
 }
 
 async function aggiungiTiroRigoreGuidato(esito) {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   const sq = document.getElementById('rigoreSquadra').value;
   const cal = parseInt(document.getElementById('rigoreCalotta').value, 10);
   if (!Number.isFinite(cal) || cal < 1 || cal > 15) return;
@@ -2530,10 +2422,6 @@ function stampaViaIframe(blobUrl) {
 }
 
 async function esportaEStampaPDF(modalita = false) {
-  if (isOnlineBloccato()) {
-    aggiornaBloccoModalitaAereo();
-    return;
-  }
   if (esportazioneInCorso) return;
   esportazioneInCorso = true;
   mostraFeedbackExport('Preparazione verbale FIN…');
